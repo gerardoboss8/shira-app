@@ -26,6 +26,14 @@ recordatorios/fechas litúrgicas y seguimientos de pedidos.
 - Los precios se **congelan** en `venta_items` al momento de vender.
 - Roles: `admin` (socios, todo), `vendedor` (vende, consulta), `contador` (solo lectura).
 
+## Acceso con usuario simple (sin correo)
+Los vendedores entran escribiendo solo su usuario. Supabase Auth siempre necesita
+un correo, así que el login traduce con `aCorreoDeAcceso()` (`src/lib/usuarios.ts`):
+`juan` → `juan@usuarios.libreriashira.com`. Si el texto lleva `@`, se usa tal cual
+(los socios entran con su correo real). El dominio interno **no recibe correo**:
+es solo un identificador. Para crear un vendedor, el admin lo da de alta en
+Supabase con ese correo sintético y *Auto Confirm* activado.
+
 ## Next.js 16 — recordatorios al escribir código
 - `cookies()`, `headers()`, `params`, `searchParams` son **asíncronos** (`await`).
 - El antiguo `middleware` es ahora **`src/proxy.ts`** (función `proxy`, runtime nodejs, sin edge).

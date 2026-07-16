@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { aCorreoDeAcceso } from "@/lib/usuarios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +12,7 @@ import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -22,13 +23,14 @@ export default function LoginPage() {
     setCargando(true);
 
     const supabase = createClient();
+    // "juan" se convierte a "juan@usuarios.libreriashira.com"; un correo se usa tal cual.
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: aCorreoDeAcceso(usuario),
       password,
     });
 
     if (error) {
-      setError("Correo o contraseña incorrectos.");
+      setError("Usuario o contraseña incorrectos.");
       setCargando(false);
       return;
     }
@@ -59,17 +61,18 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Correo</Label>
+            <Label htmlFor="usuario">Usuario</Label>
             <Input
-              id="email"
-              type="email"
-              inputMode="email"
+              id="usuario"
+              type="text"
               autoComplete="username"
               autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu-correo@ejemplo.com"
+              value={usuario}
+              onChange={(e) => setUsuario(e.target.value)}
+              placeholder="usuario o correo"
             />
           </div>
 
