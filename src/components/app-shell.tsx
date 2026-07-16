@@ -7,7 +7,15 @@ import { useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Rol } from "@/lib/database.types";
-import { Home, ShoppingCart, Receipt, Package, Wallet, LogOut } from "lucide-react";
+import {
+  Home,
+  ShoppingCart,
+  Receipt,
+  Package,
+  Wallet,
+  BarChart3,
+  LogOut,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -129,6 +137,14 @@ export function AppShell({
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {(role === "admin" || role === "contador") && (
+                <>
+                  <DropdownMenuItem render={<Link href="/reportes" />}>
+                    <BarChart3 className="h-4 w-4" /> Reportes
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onClick={salir} disabled={saliendo}>
                 <LogOut className="h-4 w-4" />
                 {saliendo ? "Saliendo…" : "Cerrar sesión"}

@@ -137,3 +137,23 @@
     @apply font-heading;
   }
 }
+
+/* Impresión / "Guardar como PDF": solo el contenido, sin navegación. */
+@media print {
+  header,
+  nav {
+    display: none !important;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  body {
+    background: #fff !important;
+  }
+  /* Evita cortar tarjetas a la mitad entre páginas */
+  section,
+  [data-slot="card"] {
+    break-inside: avoid;
+  }
+}
