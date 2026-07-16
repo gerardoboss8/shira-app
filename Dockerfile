@@ -17,16 +17,13 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# IMPORTANTE: las variables NEXT_PUBLIC_* se incrustan en el bundle durante
-# el build, así que deben existir AQUÍ (no basta ponerlas en runtime).
-# En EasyPanel se configuran como "Build Args".
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ARG NEXT_PUBLIC_TZ="America/Guatemala"
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
-    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
-    NEXT_PUBLIC_TZ=$NEXT_PUBLIC_TZ \
-    NEXT_TELEMETRY_DISABLED=1
+# Las variables NEXT_PUBLIC_* se incrustan en el bundle durante el build.
+# Vienen de `.env.production` (versionado en el repo): son valores públicos que
+# de todos modos viajan al navegador. Así no dependemos de "build args", que no
+# existen en todas las versiones de EasyPanel.
+# OJO: no declarar ARG/ENV para ellas aquí — si el builder no las pasa, quedarían
+# vacías y pisarían al archivo, compilando la app sin conexión a Supabase.
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 

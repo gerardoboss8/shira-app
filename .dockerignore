@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Necesario para el build: valores públicos de Supabase
+!.env.production
 
 node_modules
 .next

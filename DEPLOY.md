@@ -56,19 +56,19 @@ Eso te dará `sistema.libreriashira.com`. (Puedes usar el subdominio que quieras
 3. **Source**: elige **GitHub**, autoriza tu cuenta y selecciona el repo `shira-app`, rama `main`.
 4. **Build**: método **Dockerfile** (EasyPanel detecta el `Dockerfile` en la raíz).
 
-### 4.1 Build Args (⚠️ el paso más importante)
+### 4.1 Variables de entorno: **no hay que configurar nada** ✅
 
-En la sección de **Build**, agrega estos *build arguments*:
+Las claves públicas de Supabase viven en **`.env.production`** (versionado en el
+repo) y Next.js las lee sola durante el build. No necesitas *build args* ni
+variables en la sección **Entorno**.
 
-| Nombre | Valor |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://jmakcqisqarcykmjkanp.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | tu clave `sb_publishable_...` |
-
-> **Por qué aquí y no en Environment:** las variables `NEXT_PUBLIC_*` se
-> incrustan dentro del JavaScript **durante el build**. Si solo las pones como
-> variables de entorno de ejecución, la app compila pero **no conecta con
-> Supabase**. Cada vez que cambies estos valores hay que **reconstruir**.
+> **Por qué está bien tenerlas en el repo:** `NEXT_PUBLIC_*` significa que viajan
+> dentro del JavaScript que descarga cada navegador — son públicas por diseño.
+> Quien protege los datos es el **RLS de Supabase**. La clave `service_role`
+> (esa sí secreta) no se usa ni está en el repo.
+>
+> Si algún día cambian esos valores: edítalos en `.env.production`, haz push y
+> vuelve a desplegar (se incrustan al compilar, no en ejecución).
 
 ### 4.2 Puerto
 
