@@ -19,6 +19,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -130,12 +131,15 @@ export function AppShell({
               {iniciales}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>
-                <div className="font-medium">{nombre}</div>
-                <div className="text-xs font-normal text-muted-foreground">
-                  {rolLabel[role]}
-                </div>
-              </DropdownMenuLabel>
+              {/* Base UI exige que GroupLabel viva dentro de un Group */}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>
+                  <div className="font-medium">{nombre}</div>
+                  <div className="text-xs font-normal text-muted-foreground">
+                    {rolLabel[role]}
+                  </div>
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               {(role === "admin" || role === "contador") && (
                 <>
