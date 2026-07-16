@@ -1,0 +1,21 @@
+# Nunca copiar secretos ni basura a la imagen
+.env
+.env.*
+!.env.example
+
+node_modules
+.next
+.git
+.gitignore
+
+npm-debug.log*
+yarn-error.log*
+
+# No hacen falta dentro del contenedor
+supabase
+.claude
+README.md
+CLAUDE.md
+AGENTS.md
+SPEC.md
+DEPLOY.md
