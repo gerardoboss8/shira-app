@@ -12,7 +12,7 @@ export default async function NuevaVentaPage() {
     supabase.from("categorias").select("*").order("orden"),
     supabase
       .from("productos")
-      .select("id, nombre, sku, precio_venta, stock, categoria_id")
+      .select("id, nombre, sku, precio_venta, stock, categoria_id, grupo")
       .eq("activo", true)
       .order("nombre"),
   ]);

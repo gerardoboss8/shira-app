@@ -33,15 +33,19 @@ export type ProductoEdit = {
   costo?: number | null;
   stock_minimo: number;
   categoria_id?: string;
+  grupo?: string | null;
 };
 
 export function ProductoDialog({
   categorias,
+  gruposExistentes = [],
   producto,
   abierto,
   onClose,
 }: {
   categorias: Categoria[];
+  /** Subcategorías ya usadas, para sugerirlas al escribir. */
+  gruposExistentes?: string[];
   producto: ProductoEdit | null; // null = crear
   abierto: boolean;
   onClose: () => void;
@@ -51,6 +55,7 @@ export function ProductoDialog({
 
   const [categoriaId, setCategoriaId] = useState("");
   const [nombre, setNombre] = useState("");
+  const [grupo, setGrupo] = useState("");
   const [precio, setPrecio] = useState("");
   const [costo, setCosto] = useState("");
   const [stockInicial, setStockInicial] = useState("");
@@ -62,6 +67,7 @@ export function ProductoDialog({
     if (!abierto) return;
     setCategoriaId(producto?.categoria_id ?? categorias[0]?.id ?? "");
     setNombre(producto?.nombre ?? "");
+    setGrupo(producto?.grupo ?? "");
     setPrecio(producto ? String(producto.precio_venta) : "");
     setCosto(producto?.costo != null ? String(producto.costo) : "");
     setStockInicial("");
@@ -85,6 +91,7 @@ export function ProductoDialog({
 
     const costoNum = costo.trim() === "" ? null : Number(costo);
     const minimo = Math.max(0, Math.floor(Number(stockMinimo) || 0));
+    const grupoTxt = grupo.trim() === "" ? null : grupo.trim();
     const supabase = createClient();
     setProcesando(true);
 
@@ -97,6 +104,7 @@ export function ProductoDialog({
           precio_venta: p,
           costo: costoNum,
           stock_minimo: minimo,
+          grupo: grupoTxt,
         })
         .eq("id", producto!.id);
       setProcesando(false);
@@ -114,6 +122,7 @@ export function ProductoDialog({
         p_stock_inicial: inicial,
         p_stock_minimo: minimo,
         p_costo: costoNum,
+        p_grupo: grupoTxt,
       });
       setProcesando(false);
       if (error) {
@@ -171,6 +180,26 @@ export function ProductoDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="grupo">Subcategoría (opcional)</Label>
+            <Input
+              id="grupo"
+              list="grupos-existentes"
+              value={grupo}
+              onChange={(e) => setGrupo(e.target.value)}
+              placeholder="Ej. Camisas"
+            />
+            <datalist id="grupos-existentes">
+              {gruposExistentes.map((g) => (
+                <option key={g} value={g} />
+              ))}
+            </datalist>
+            <p className="text-xs text-muted-foreground">
+              Los productos con la misma subcategoría se agrupan en una sola fila
+              que se despliega (variantes de talla, color, etc.).
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

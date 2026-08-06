@@ -19,6 +19,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Minus,
   Plus,
   Search,
@@ -27,6 +34,8 @@ import {
   CheckCircle2,
   Loader2,
   X,
+  Layers,
+  ChevronRight,
 } from "lucide-react";
 
 type ProductoPOS = {
@@ -36,9 +45,15 @@ type ProductoPOS = {
   precio_venta: number;
   stock: number;
   categoria_id: string;
+  grupo: string | null;
 };
 
 type LineaCarrito = { producto: ProductoPOS; cantidad: number };
+
+/** Celda del catálogo: un producto suelto o una subcategoría con variantes. */
+type Celda =
+  | { tipo: "producto"; clave: string; nombre: string; producto: ProductoPOS }
+  | { tipo: "grupo"; clave: string; nombre: string; items: ProductoPOS[] };
 
 const METODOS: { value: MetodoPago; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
@@ -67,6 +82,10 @@ export function POS({
   const [descuento, setDescuento] = useState("");
   const [procesando, setProcesando] = useState(false);
   const [resultado, setResultado] = useState<{ folio: number; total: number } | null>(null);
+  const [grupoAbierto, setGrupoAbierto] = useState<{
+    nombre: string;
+    items: ProductoPOS[];
+  } | null>(null);
 
   const productosFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -78,6 +97,32 @@ export function POS({
       );
     });
   }, [productos, busqueda, catActiva]);
+
+  // Sin búsqueda, las variantes se colapsan en su subcategoría (ej. Camisas).
+  const celdas = useMemo(() => {
+    const buscando = busqueda.trim().length > 0;
+    const sueltos: Celda[] = [];
+    const porGrupo = new Map<string, ProductoPOS[]>();
+
+    for (const p of productosFiltrados) {
+      if (p.grupo && !buscando) {
+        if (!porGrupo.has(p.grupo)) porGrupo.set(p.grupo, []);
+        porGrupo.get(p.grupo)!.push(p);
+      } else {
+        sueltos.push({ tipo: "producto", clave: p.id, nombre: p.nombre, producto: p });
+      }
+    }
+
+    return [
+      ...sueltos,
+      ...[...porGrupo.entries()].map(([nombre, items]) => ({
+        tipo: "grupo" as const,
+        clave: `grupo:${nombre}`,
+        nombre,
+        items: [...items].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
+      })),
+    ].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  }, [productosFiltrados, busqueda]);
 
   const lineas = [...carrito.values()];
   const subtotal = lineas.reduce(
@@ -100,6 +145,45 @@ export function POS({
       next.set(p.id, { producto: p, cantidad });
       return next;
     });
+  }
+
+  function tileProducto(p: ProductoPOS) {
+    const enCarrito = carrito.get(p.id)?.cantidad ?? 0;
+    const agotado = p.stock <= 0;
+    return (
+      <button
+        key={p.id}
+        onClick={() => agregar(p)}
+        disabled={agotado}
+        className={cn(
+          "relative flex flex-col rounded-xl border bg-card p-3 text-left transition-colors",
+          agotado
+            ? "cursor-not-allowed opacity-50"
+            : "hover:border-primary hover:bg-accent/40 active:scale-[0.98]",
+        )}
+      >
+        <span className="line-clamp-2 text-sm font-medium leading-snug">
+          {p.nombre}
+        </span>
+        <span className="mt-1 text-xs text-muted-foreground">{p.sku}</span>
+        <span className="mt-2 font-semibold text-primary">
+          {formatQ(p.precio_venta)}
+        </span>
+        <span
+          className={cn(
+            "mt-0.5 text-xs",
+            p.stock <= 2 ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {agotado ? "Sin stock" : `Stock: ${p.stock}`}
+        </span>
+        {enCarrito > 0 && (
+          <span className="absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
+            {enCarrito}
+          </span>
+        )}
+      </button>
+    );
   }
 
   function cambiarCantidad(id: string, delta: number) {
@@ -232,13 +316,23 @@ export function POS({
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {productosFiltrados.map((p) => {
-            const enCarrito = carrito.get(p.id)?.cantidad ?? 0;
-            const agotado = p.stock <= 0;
+          {celdas.map((c) => {
+            if (c.tipo === "producto") return tileProducto(c.producto);
+
+            const stock = c.items.reduce((s, p) => s + p.stock, 0);
+            const enCarrito = c.items.reduce(
+              (s, p) => s + (carrito.get(p.id)?.cantidad ?? 0),
+              0,
+            );
+            const precios = c.items.map((p) => p.precio_venta);
+            const min = Math.min(...precios);
+            const max = Math.max(...precios);
+            const agotado = stock <= 0;
+
             return (
               <button
-                key={p.id}
-                onClick={() => agregar(p)}
+                key={c.clave}
+                onClick={() => setGrupoAbierto({ nombre: c.nombre, items: c.items })}
                 disabled={agotado}
                 className={cn(
                   "relative flex flex-col rounded-xl border bg-card p-3 text-left transition-colors",
@@ -247,20 +341,24 @@ export function POS({
                     : "hover:border-primary hover:bg-accent/40 active:scale-[0.98]",
                 )}
               >
-                <span className="line-clamp-2 text-sm font-medium leading-snug">
-                  {p.nombre}
+                <span className="flex items-center gap-1.5 text-sm font-medium leading-snug">
+                  <Layers className="h-4 w-4 shrink-0 text-primary" />
+                  {c.nombre}
                 </span>
-                <span className="mt-1 text-xs text-muted-foreground">{p.sku}</span>
+                <span className="mt-1 text-xs text-muted-foreground">
+                  {c.items.length} variantes
+                </span>
                 <span className="mt-2 font-semibold text-primary">
-                  {formatQ(p.precio_venta)}
+                  {min === max ? formatQ(min) : `${formatQ(min)} – ${formatQ(max)}`}
                 </span>
                 <span
                   className={cn(
-                    "mt-0.5 text-xs",
-                    p.stock <= 2 ? "text-destructive" : "text-muted-foreground",
+                    "mt-0.5 flex items-center gap-0.5 text-xs",
+                    stock <= 2 ? "text-destructive" : "text-muted-foreground",
                   )}
                 >
-                  {agotado ? "Sin stock" : `Stock: ${p.stock}`}
+                  {agotado ? "Sin stock" : `Stock: ${stock}`}
+                  <ChevronRight className="h-3 w-3" />
                 </span>
                 {enCarrito > 0 && (
                   <span className="absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
@@ -270,12 +368,67 @@ export function POS({
               </button>
             );
           })}
-          {productosFiltrados.length === 0 && (
+          {celdas.length === 0 && (
             <p className="col-span-full py-8 text-center text-sm text-muted-foreground">
               No se encontraron productos.
             </p>
           )}
         </div>
+
+        {/* Variantes de una subcategoría (ej. Camisas) */}
+        <Dialog
+          open={!!grupoAbierto}
+          onOpenChange={(o) => !o && setGrupoAbierto(null)}
+        >
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{grupoAbierto?.nombre}</DialogTitle>
+              <DialogDescription>
+                Toca la variante que vas a vender.
+              </DialogDescription>
+            </DialogHeader>
+            <ul className="divide-y rounded-lg border">
+              {grupoAbierto?.items.map((p) => {
+                const enCarrito = carrito.get(p.id)?.cantidad ?? 0;
+                const agotado = p.stock <= 0;
+                return (
+                  <li key={p.id}>
+                    <button
+                      onClick={() => agregar(p)}
+                      disabled={agotado}
+                      className={cn(
+                        "flex w-full items-center gap-3 px-3 py-3 text-left transition-colors",
+                        agotado
+                          ? "cursor-not-allowed opacity-50"
+                          : "hover:bg-accent/40 active:bg-accent",
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{p.nombre}</p>
+                        <p
+                          className={cn(
+                            "text-xs",
+                            p.stock <= 2 ? "text-destructive" : "text-muted-foreground",
+                          )}
+                        >
+                          {agotado ? "Sin stock" : `Stock: ${p.stock}`}
+                        </p>
+                      </div>
+                      <span className="font-semibold text-primary">
+                        {formatQ(p.precio_venta)}
+                      </span>
+                      {enCarrito > 0 && (
+                        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
+                          {enCarrito}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Carrito */}

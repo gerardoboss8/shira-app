@@ -41,6 +41,8 @@ import {
   Trash2,
   RotateCcw,
   Loader2,
+  ChevronRight,
+  Layers,
 } from "lucide-react";
 
 export type ProductoInv = {
@@ -51,9 +53,15 @@ export type ProductoInv = {
   stock: number;
   stock_minimo: number;
   activo: boolean;
+  grupo: string | null;
   categoria_id: string;
   categoria: { nombre: string; prefijo: string; orden: number } | null;
 };
+
+/** Una fila del listado: un producto suelto o una subcategoría con variantes. */
+type Fila =
+  | { tipo: "producto"; clave: string; nombre: string; producto: ProductoInv }
+  | { tipo: "grupo"; clave: string; nombre: string; items: ProductoInv[] };
 
 export function Inventario({
   productos,
@@ -72,6 +80,7 @@ export function Inventario({
   const [dialogProducto, setDialogProducto] = useState(false);
   const [porQuitar, setPorQuitar] = useState<ProductoInv | null>(null);
   const [procesando, setProcesando] = useState(false);
+  const [abiertos, setAbiertos] = useState<string[]>([]);
 
   const activos = productos.filter((p) => p.activo);
   const inactivos = productos.filter((p) => !p.activo);
@@ -91,6 +100,14 @@ export function Inventario({
   const valor = activos.reduce((s, p) => s + p.stock * p.precio_venta, 0);
   const bajoStock = activos.filter((p) => p.stock <= p.stock_minimo).length;
 
+  // Al buscar se muestra todo plano: la subcategoría estorbaría para encontrar.
+  const buscando = busqueda.trim().length > 0;
+
+  const gruposExistentes = useMemo(
+    () => [...new Set(productos.map((p) => p.grupo).filter((g): g is string => !!g))].sort(),
+    [productos],
+  );
+
   const grupos = useMemo(() => {
     const map = new Map<string, { nombre: string; orden: number; items: ProductoInv[] }>();
     for (const p of visibles) {
@@ -100,8 +117,41 @@ export function Inventario({
       }
       map.get(key)!.items.push(p);
     }
-    return [...map.values()].sort((a, b) => a.orden - b.orden);
-  }, [visibles]);
+
+    // Dentro de cada categoría, las variantes se colapsan en su subcategoría
+    return [...map.values()]
+      .sort((a, b) => a.orden - b.orden)
+      .map((cat) => {
+        const sueltos: Fila[] = [];
+        const porGrupo = new Map<string, ProductoInv[]>();
+
+        for (const p of cat.items) {
+          if (p.grupo && !buscando) {
+            if (!porGrupo.has(p.grupo)) porGrupo.set(p.grupo, []);
+            porGrupo.get(p.grupo)!.push(p);
+          } else {
+            sueltos.push({
+              tipo: "producto",
+              clave: p.id,
+              nombre: p.nombre,
+              producto: p,
+            });
+          }
+        }
+
+        const filas: Fila[] = [
+          ...sueltos,
+          ...[...porGrupo.entries()].map(([nombre, items]) => ({
+            tipo: "grupo" as const,
+            clave: `grupo:${cat.nombre}:${nombre}`,
+            nombre,
+            items: [...items].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
+          })),
+        ].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+
+        return { ...cat, filas };
+      });
+  }, [visibles, buscando]);
 
   function abrirNuevo() {
     setProductoEdit(null);
@@ -116,6 +166,7 @@ export function Inventario({
       precio_venta: p.precio_venta,
       stock_minimo: p.stock_minimo,
       categoria_id: p.categoria_id,
+      grupo: p.grupo,
     });
     setDialogProducto(true);
   }
@@ -140,13 +191,159 @@ export function Inventario({
     router.refresh();
   }
 
+  function alternarGrupo(clave: string) {
+    setAbiertos((prev) =>
+      prev.includes(clave) ? prev.filter((c) => c !== clave) : [...prev, clave],
+    );
+  }
+
+  /** Fila de un producto. `anidada` = variante dentro de una subcategoría. */
+  function filaProducto(p: ProductoInv, anidada = false) {
+    const bajo = p.activo && p.stock <= p.stock_minimo;
+    return (
+      <li
+        key={p.id}
+        className={cn(
+          "flex items-center gap-3 py-3 pr-4",
+          anidada ? "bg-muted/30 pl-9" : "pl-4",
+          !p.activo && "opacity-60",
+        )}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="truncate font-medium">{p.nombre}</p>
+            {!p.activo && (
+              <Badge variant="outline" className="shrink-0 text-[10px]">
+                Quitado
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {p.sku} · {formatQ(p.precio_venta)}
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="flex items-center justify-end gap-1.5">
+            {bajo && (
+              <Badge variant="destructive" className="gap-1 text-[10px]">
+                <AlertTriangle className="h-3 w-3" /> Bajo
+              </Badge>
+            )}
+            <span
+              className={cn("font-semibold tabular-nums", bajo && "text-destructive")}
+            >
+              {p.stock}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {formatQ(p.stock * p.precio_venta)}
+          </p>
+        </div>
+
+        {esAdmin && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 shrink-0"
+                  aria-label="Acciones"
+                />
+              }
+            >
+              <MoreVertical className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {p.activo ? (
+                <>
+                  <DropdownMenuItem onClick={() => setProductoMov(p)}>
+                    <ArrowUpDown className="h-4 w-4" /> Mover inventario
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => abrirEditar(p)}>
+                    <Pencil className="h-4 w-4" /> Editar producto
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setPorQuitar(p)}>
+                    <Trash2 className="h-4 w-4" /> Quitar del inventario
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <DropdownMenuItem onClick={() => cambiarActivo(p, true)}>
+                  <RotateCcw className="h-4 w-4" /> Devolver al inventario
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </li>
+    );
+  }
+
+  /** Fila de subcategoría: se toca y despliega sus variantes. */
+  function filaGrupo(fila: Extract<Fila, { tipo: "grupo" }>) {
+    const abierto = abiertos.includes(fila.clave);
+    const activosGrupo = fila.items.filter((p) => p.activo);
+    const stock = activosGrupo.reduce((s, p) => s + p.stock, 0);
+    const valor = activosGrupo.reduce((s, p) => s + p.stock * p.precio_venta, 0);
+    const precios = activosGrupo.map((p) => p.precio_venta);
+    const min = precios.length ? Math.min(...precios) : 0;
+    const max = precios.length ? Math.max(...precios) : 0;
+    const bajos = activosGrupo.filter((p) => p.stock <= p.stock_minimo).length;
+
+    return (
+      <li key={fila.clave}>
+        <button
+          type="button"
+          onClick={() => alternarGrupo(fila.clave)}
+          aria-expanded={abierto}
+          className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/40"
+        >
+          <ChevronRight
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+              abierto && "rotate-90",
+            )}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <Layers className="h-4 w-4 shrink-0 text-primary" />
+              <p className="truncate font-medium">{fila.nombre}</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {fila.items.length} variantes ·{" "}
+              {min === max ? formatQ(min) : `${formatQ(min)} – ${formatQ(max)}`}
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="flex items-center justify-end gap-1.5">
+              {bajos > 0 && (
+                <Badge variant="destructive" className="gap-1 text-[10px]">
+                  <AlertTriangle className="h-3 w-3" /> {bajos}
+                </Badge>
+              )}
+              <span className="font-semibold tabular-nums">{stock}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">{formatQ(valor)}</p>
+          </div>
+        </button>
+
+        {abierto && (
+          <ul className="divide-y border-t">
+            {fila.items.map((p) => filaProducto(p, true))}
+          </ul>
+        )}
+      </li>
+    );
+  }
+
   function exportarCSV() {
     const filas = [
-      ["SKU", "Producto", "Categoria", "Stock", "Precio_venta", "Valor"],
+      ["SKU", "Producto", "Categoria", "Subcategoria", "Stock", "Precio_venta", "Valor"],
       ...activos.map((p) => [
         p.sku,
         `"${p.nombre.replace(/"/g, '""')}"`,
         p.categoria?.nombre ?? "",
+        p.grupo ?? "",
         String(p.stock),
         p.precio_venta.toFixed(2),
         (p.stock * p.precio_venta).toFixed(2),
@@ -214,88 +411,9 @@ export function Inventario({
           <Card>
             <CardContent className="p-0">
               <ul className="divide-y">
-                {g.items.map((p) => {
-                  const bajo = p.activo && p.stock <= p.stock_minimo;
-                  return (
-                    <li
-                      key={p.id}
-                      className={cn(
-                        "flex items-center gap-3 px-4 py-3",
-                        !p.activo && "opacity-60",
-                      )}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <p className="truncate font-medium">{p.nombre}</p>
-                          {!p.activo && (
-                            <Badge variant="outline" className="shrink-0 text-[10px]">
-                              Quitado
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {p.sku} · {formatQ(p.precio_venta)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {bajo && (
-                            <Badge variant="destructive" className="gap-1 text-[10px]">
-                              <AlertTriangle className="h-3 w-3" /> Bajo
-                            </Badge>
-                          )}
-                          <span
-                            className={cn(
-                              "font-semibold tabular-nums",
-                              bajo && "text-destructive",
-                            )}
-                          >
-                            {p.stock}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {formatQ(p.stock * p.precio_venta)}
-                        </p>
-                      </div>
-
-                      {esAdmin && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 shrink-0"
-                                aria-label="Acciones"
-                              />
-                            }
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-52">
-                            {p.activo ? (
-                              <>
-                                <DropdownMenuItem onClick={() => setProductoMov(p)}>
-                                  <ArrowUpDown className="h-4 w-4" /> Mover inventario
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => abrirEditar(p)}>
-                                  <Pencil className="h-4 w-4" /> Editar producto
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setPorQuitar(p)}>
-                                  <Trash2 className="h-4 w-4" /> Quitar del inventario
-                                </DropdownMenuItem>
-                              </>
-                            ) : (
-                              <DropdownMenuItem onClick={() => cambiarActivo(p, true)}>
-                                <RotateCcw className="h-4 w-4" /> Devolver al inventario
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </li>
-                  );
-                })}
+                {g.filas.map((f) =>
+                  f.tipo === "grupo" ? filaGrupo(f) : filaProducto(f.producto),
+                )}
               </ul>
             </CardContent>
           </Card>
@@ -317,6 +435,7 @@ export function Inventario({
           />
           <ProductoDialog
             categorias={categorias}
+            gruposExistentes={gruposExistentes}
             producto={productoEdit}
             abierto={dialogProducto}
             onClose={() => setDialogProducto(false)}

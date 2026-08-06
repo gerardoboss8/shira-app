@@ -55,6 +55,8 @@ export interface Producto {
   stock: number;
   stock_minimo: number;
   activo: boolean;
+  /** Subcategoría opcional: agrupa variantes (ej. "Camisas"). */
+  grupo: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -144,7 +146,7 @@ export interface Database {
       categorias: TableDef<Categoria, "id" | "orden">;
       productos: TableDef<
         Producto,
-        "id" | "costo" | "stock" | "stock_minimo" | "activo" | "created_at" | "updated_at"
+        "id" | "costo" | "stock" | "stock_minimo" | "activo" | "grupo" | "created_at" | "updated_at"
       >;
       ventas: TableDef<
         Venta,

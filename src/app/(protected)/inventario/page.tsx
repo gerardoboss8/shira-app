@@ -13,7 +13,7 @@ export default async function InventarioPage() {
     supabase
       .from("productos")
       .select(
-        "id, nombre, sku, precio_venta, stock, stock_minimo, activo, categoria_id, categoria:categorias(nombre, prefijo, orden)",
+        "id, nombre, sku, precio_venta, stock, stock_minimo, activo, grupo, categoria_id, categoria:categorias(nombre, prefijo, orden)",
       )
       .order("nombre"),
     supabase.from("categorias").select("*").order("orden"),
