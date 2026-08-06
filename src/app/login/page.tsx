@@ -30,7 +30,19 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setError("Usuario o contraseña incorrectos.");
+      // Distinguir "credenciales malas" de "no se pudo llegar al servidor":
+      // decir siempre lo primero manda a la gente a cambiar contraseñas en vano.
+      const sinConexion =
+        error.status === 0 ||
+        error.status === undefined ||
+        error.status >= 500 ||
+        /fetch|network|failed to fetch/i.test(error.message);
+
+      setError(
+        sinConexion
+          ? "No se pudo conectar con el servidor. Revisa tu internet e inténtalo de nuevo."
+          : "Usuario o contraseña incorrectos.",
+      );
       setCargando(false);
       return;
     }
