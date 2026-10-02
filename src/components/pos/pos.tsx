@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { formatQ, folioVenta } from "@/lib/format";
+import { formatQ, folioVenta, hoyGT, fechaCortaGT } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Categoria, MetodoPago, Rol } from "@/lib/database.types";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ import {
   X,
   Layers,
   ChevronRight,
+  CalendarDays,
 } from "lucide-react";
 
 type ProductoPOS = {
@@ -80,8 +81,9 @@ export function POS({
   const [metodo, setMetodo] = useState<MetodoPago>("efectivo");
   const [cliente, setCliente] = useState("");
   const [descuento, setDescuento] = useState("");
+  const [fecha, setFecha] = useState(() => hoyGT());
   const [procesando, setProcesando] = useState(false);
-  const [resultado, setResultado] = useState<{ folio: number; total: number } | null>(null);
+  const [resultado, setResultado] = useState<{ folio: number; total: number; fecha: string } | null>(null);
   const [grupoAbierto, setGrupoAbierto] = useState<{
     nombre: string;
     items: ProductoPOS[];
@@ -132,6 +134,8 @@ export function POS({
   const descNum = Math.max(0, Number(descuento) || 0);
   const total = Math.max(subtotal - descNum, 0);
   const totalUnidades = lineas.reduce((s, l) => s + l.cantidad, 0);
+  const hoy = hoyGT();
+  const esFechaPasada = fecha < hoy;
 
   function agregar(p: ProductoPOS) {
     setCarrito((prev) => {
@@ -217,6 +221,7 @@ export function POS({
     setCliente("");
     setDescuento("");
     setMetodo("efectivo");
+    setFecha(hoyGT());
     setBusqueda("");
     setResultado(null);
     router.refresh(); // recarga stock actualizado
@@ -224,6 +229,14 @@ export function POS({
 
   async function confirmar() {
     if (lineas.length === 0) return;
+    if (!fecha) {
+      toast.error("Elige la fecha de la venta.");
+      return;
+    }
+    if (fecha > hoyGT()) {
+      toast.error("La fecha de la venta no puede ser futura.");
+      return;
+    }
     setProcesando(true);
 
     const supabase = createClient();
@@ -236,6 +249,7 @@ export function POS({
       p_cliente_nombre: cliente.trim() || null,
       p_descuento: esAdmin ? descNum : 0,
       p_nota: null,
+      p_fecha: fecha,
     });
 
     setProcesando(false);
@@ -246,7 +260,7 @@ export function POS({
     }
 
     const res = data as { folio: number; total: number };
-    setResultado({ folio: res.folio, total: res.total });
+    setResultado({ folio: res.folio, total: res.total, fecha });
   }
 
   // ---------- Pantalla de éxito ----------
@@ -260,6 +274,11 @@ export function POS({
         <p className="mt-1 text-muted-foreground">
           Folio <span className="font-medium">{folioVenta(resultado.folio)}</span>
         </p>
+        {resultado.fecha < hoyGT() && (
+          <p className="mt-1 text-sm text-amber-700">
+            Registrada con fecha {fechaCortaGT(resultado.fecha)}
+          </p>
+        )}
         <p className="mt-4 text-4xl font-bold text-primary">
           {formatQ(resultado.total)}
         </p>
@@ -536,6 +555,37 @@ export function POS({
                     onChange={(e) => setDescuento(e.target.value)}
                   />
                 </div>
+              )}
+            </div>
+
+            {/* Fecha de la venta (por defecto hoy; permite ventas pasadas) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="fecha" className="flex items-center gap-1.5">
+                <CalendarDays className="h-4 w-4" /> Fecha de la venta
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="fecha"
+                  type="date"
+                  max={hoy}
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value)}
+                  className={cn(esFechaPasada && "border-amber-500 bg-amber-50")}
+                />
+                {fecha !== hoy && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setFecha(hoy)}
+                  >
+                    Hoy
+                  </Button>
+                )}
+              </div>
+              {esFechaPasada && (
+                <p className="text-xs text-amber-700">
+                  Se registrará como vendida el {fechaCortaGT(fecha)}.
+                </p>
               )}
             </div>
 

@@ -177,8 +177,10 @@ export interface Database {
           p_descuento?: number;
           p_nota?: string | null;
           p_permitir_stock_negativo?: boolean;
+          /** YYYY-MM-DD. Null u hoy = ahora; pasada = ese día. */
+          p_fecha?: string | null;
         };
-        Returns: { venta_id: string; folio: number; total: number };
+        Returns: { venta_id: string; folio: number; total: number; fecha: string };
       };
       anular_venta: {
         Args: { p_venta_id: string; p_motivo: string };
