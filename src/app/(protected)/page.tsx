@@ -33,7 +33,7 @@ export default async function InicioPage() {
     admin
       ? supabase
           .from("ventas")
-          .select("total")
+          .select("total, tipo")
           .eq("estado", "completada")
           .gte("fecha", desdeHoy)
       : Promise.resolve({ data: null }),
@@ -41,8 +41,13 @@ export default async function InicioPage() {
 
   const fijados = fijadosRes.data ?? [];
   const fechas = fechasRes.data ?? [];
-  const ventasHoy = (ventasHoyRes.data ?? []) as { total: number }[];
+  // "Ventas de hoy" = solo normales; bonos e ingresos extra se muestran aparte.
+  const ventasDelDia = (ventasHoyRes.data ?? []) as { total: number; tipo: string | null }[];
+  const ventasHoy = ventasDelDia.filter((v) => (v.tipo ?? "normal") === "normal");
   const totalHoy = ventasHoy.reduce((s, v) => s + Number(v.total), 0);
+  const totalAparteHoy = ventasDelDia
+    .filter((v) => v.tipo && v.tipo !== "normal")
+    .reduce((s, v) => s + Number(v.total), 0);
 
   const primerNombre = profile.nombre.split(" ")[0];
 
@@ -76,6 +81,11 @@ export default async function InicioPage() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold text-primary">{formatQ(totalHoy)}</p>
+              {totalAparteHoy > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  + {formatQ(totalAparteHoy)} en bonos/extra
+                </p>
+              )}
             </CardContent>
           </Card>
           <Card>

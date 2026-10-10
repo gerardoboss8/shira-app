@@ -9,6 +9,8 @@
 export type Rol = "admin" | "vendedor" | "contador";
 export type MetodoPago = "efectivo" | "tarjeta" | "transferencia" | "otro";
 export type EstadoVenta = "completada" | "anulada";
+/** normal = venta del mes; bonos y extra se separan en reportes. */
+export type TipoVenta = "normal" | "bonos" | "extra";
 export type TipoMovimiento =
   | "entrada"
   | "salida_venta"
@@ -73,6 +75,7 @@ export interface Venta {
   total: number;
   estado: EstadoVenta;
   nota: string | null;
+  tipo: TipoVenta;
 }
 
 export interface VentaItem {
@@ -150,7 +153,7 @@ export interface Database {
       >;
       ventas: TableDef<
         Venta,
-        "id" | "folio" | "fecha" | "cliente_nombre" | "descuento" | "estado" | "nota"
+        "id" | "folio" | "fecha" | "cliente_nombre" | "descuento" | "estado" | "nota" | "tipo"
       >;
       venta_items: TableDef<VentaItem, "id">;
       movimientos_inventario: TableDef<
@@ -179,8 +182,13 @@ export interface Database {
           p_permitir_stock_negativo?: boolean;
           /** YYYY-MM-DD. Null u hoy = ahora; pasada = ese día. */
           p_fecha?: string | null;
+          p_tipo?: TipoVenta;
         };
-        Returns: { venta_id: string; folio: number; total: number; fecha: string };
+        Returns: { venta_id: string; folio: number; total: number; fecha: string; tipo: TipoVenta };
+      };
+      cambiar_tipo_venta: {
+        Args: { p_venta_id: string; p_tipo: TipoVenta };
+        Returns: undefined;
       };
       anular_venta: {
         Args: { p_venta_id: string; p_motivo: string };

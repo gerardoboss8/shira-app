@@ -7,6 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AnularVenta } from "@/components/ventas/anular-venta";
+import { CambiarTipoVenta } from "@/components/ventas/cambiar-tipo-venta";
+import { TipoVentaBadge } from "@/components/ventas/tipo-venta-badge";
+import { tipoVentaLabel } from "@/lib/tipos-venta";
+import type { TipoVenta } from "@/lib/database.types";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +34,7 @@ export default async function VentaDetallePage({
   const { data: venta } = await supabase
     .from("ventas")
     .select(
-      "id, folio, fecha, cliente_nombre, metodo_pago, subtotal, descuento, total, estado, nota, vendedor:profiles(nombre)",
+      "id, folio, fecha, cliente_nombre, metodo_pago, subtotal, descuento, total, estado, nota, tipo, vendedor:profiles(nombre)",
     )
     .eq("id", id)
     .single();
@@ -43,6 +47,8 @@ export default async function VentaDetallePage({
     .eq("venta_id", id);
 
   const vendedor = (venta.vendedor as unknown as { nombre: string } | null)?.nombre;
+  const tipo = (venta.tipo ?? "normal") as TipoVenta;
+  const puedeCambiarTipo = esAdmin(profile) && venta.estado === "completada";
   const lineas = (items ?? []) as unknown as {
     cantidad: number;
     precio_unitario: number;
@@ -69,6 +75,7 @@ export default async function VentaDetallePage({
             {venta.estado === "anulada" && (
               <Badge variant="destructive">Anulada</Badge>
             )}
+            <TipoVentaBadge tipo={tipo} />
           </div>
           <p className="text-sm text-muted-foreground">{fechaHoraGT(venta.fecha)}</p>
         </div>
@@ -82,8 +89,20 @@ export default async function VentaDetallePage({
           <Dato label="Método de pago" valor={metodoLabel[venta.metodo_pago]} />
           <Dato label="Vendedor" valor={vendedor ?? "—"} />
           <Dato label="Cliente" valor={venta.cliente_nombre || "—"} />
+          {!puedeCambiarTipo && <Dato label="Tipo de venta" valor={tipoVentaLabel[tipo]} />}
         </CardContent>
       </Card>
+
+      {puedeCambiarTipo && (
+        <Card>
+          <CardContent className="space-y-2 py-4">
+            <div className="text-xs text-muted-foreground">
+              Tipo de venta · bonos e ingreso extra se reportan aparte
+            </div>
+            <CambiarTipoVenta ventaId={venta.id} folio={folioVenta(venta.folio)} tipo={tipo} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-0">

@@ -17,10 +17,14 @@ export function AccionesReporte({
   periodo: string;
   resumen: {
     ingresos: number;
+    totalBonos: number;
+    totalExtra: number;
     totalGastos: number;
     totalCompras: number;
     resultado: number;
     ventas: number;
+    ventasBonos: number;
+    ventasExtra: number;
   };
   porCategoria: Fila[];
   porVendedor: Fila[];
@@ -36,11 +40,15 @@ export function AccionesReporte({
     lineas.push("");
     lineas.push("RESUMEN");
     lineas.push("Concepto,Monto");
-    lineas.push(`Ventas,${q(resumen.ingresos)}`);
+    lineas.push(`Ventas normales,${q(resumen.ingresos)}`);
+    lineas.push(`Venta de bonos,${q(resumen.totalBonos)}`);
+    lineas.push(`Ingresos extra,${q(resumen.totalExtra)}`);
     lineas.push(`Gastos,${q(resumen.totalGastos)}`);
     lineas.push(`Compras,${q(resumen.totalCompras)}`);
     lineas.push(`Resultado,${q(resumen.resultado)}`);
-    lineas.push(`Numero de ventas,${resumen.ventas}`);
+    lineas.push(`Numero de ventas normales,${resumen.ventas}`);
+    lineas.push(`Numero de ventas de bonos,${resumen.ventasBonos}`);
+    lineas.push(`Numero de ingresos extra,${resumen.ventasExtra}`);
 
     const bloque = (titulo: string, filas: Fila[], colUnidades: string) => {
       lineas.push("");

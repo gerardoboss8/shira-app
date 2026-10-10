@@ -6,7 +6,8 @@ import { formatQ, hoyGT, fechaCortaGT } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { AccionesReporte } from "@/components/reportes/acciones-reporte";
-import { TrendingUp, TrendingDown, Wallet, Receipt } from "lucide-react";
+import type { TipoVenta } from "@/lib/database.types";
+import { TrendingUp, TrendingDown, Wallet, Receipt, Gift, PlusCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -49,13 +50,13 @@ export default async function ReportesPage({
   const [ventasRes, itemsRes, gastosRes, productosRes] = await Promise.all([
     supabase
       .from("ventas")
-      .select("id, total, metodo_pago, vendedor:profiles(nombre)")
+      .select("id, total, metodo_pago, tipo, vendedor:profiles(nombre)")
       .eq("estado", "completada")
       .gte("fecha", desdeTs),
     supabase
       .from("venta_items")
       .select(
-        "cantidad, total_linea, producto_id, producto:productos(nombre, sku, categoria:categorias(nombre, orden)), venta:ventas!inner(fecha, estado)",
+        "cantidad, total_linea, producto_id, producto:productos(nombre, sku, categoria:categorias(nombre, orden)), venta:ventas!inner(fecha, estado, tipo)",
       )
       .eq("venta.estado", "completada")
       .gte("venta.fecha", desdeTs),
@@ -66,14 +67,15 @@ export default async function ReportesPage({
       .eq("activo", true),
   ]);
 
-  const ventas = (ventasRes.data ?? []) as unknown as {
+  const todasLasVentas = (ventasRes.data ?? []) as unknown as {
     id: string;
     total: number;
     metodo_pago: string;
+    tipo: TipoVenta;
     vendedor: { nombre: string } | null;
   }[];
 
-  const items = (itemsRes.data ?? []) as unknown as {
+  const todosLosItems = (itemsRes.data ?? []) as unknown as {
     cantidad: number;
     total_linea: number;
     producto_id: string;
@@ -82,7 +84,17 @@ export default async function ReportesPage({
       sku: string;
       categoria: { nombre: string; orden: number } | null;
     } | null;
+    venta: { tipo: TipoVenta } | null;
   }[];
+
+  // "Ventas" = solo ventas normales del mes. Bonos e ingresos extra se reportan aparte.
+  const ventas = todasLasVentas.filter((v) => (v.tipo ?? "normal") === "normal");
+  const items = todosLosItems.filter((i) => (i.venta?.tipo ?? "normal") === "normal");
+  const bonos = todasLasVentas.filter((v) => v.tipo === "bonos");
+  const extras = todasLasVentas.filter((v) => v.tipo === "extra");
+  const sumar = (l: { total: number }[]) => l.reduce((s, v) => s + Number(v.total), 0);
+  const totalBonos = sumar(bonos);
+  const totalExtra = sumar(extras);
 
   const gastos = (gastosRes.data ?? []) as unknown as {
     tipo: "gasto" | "compra";
@@ -100,14 +112,15 @@ export default async function ReportesPage({
   }[];
 
   // ---------- Resultado del período ----------
-  const ingresos = ventas.reduce((s, v) => s + Number(v.total), 0);
+  const ingresos = sumar(ventas);
   const totalGastos = gastos
     .filter((g) => g.tipo === "gasto")
     .reduce((s, g) => s + Number(g.monto), 0);
   const totalCompras = gastos
     .filter((g) => g.tipo === "compra")
     .reduce((s, g) => s + Number(g.monto), 0);
-  const resultado = ingresos - totalGastos - totalCompras;
+  // El resultado es el dinero real del período: incluye bonos y extra, pero se muestran por separado.
+  const resultado = ingresos + totalBonos + totalExtra - totalGastos - totalCompras;
   const ticket = ventas.length ? ingresos / ventas.length : 0;
 
   // ---------- Desgloses ----------
@@ -155,7 +168,8 @@ export default async function ReportesPage({
     .sort((a, b) => b.unidades - a.unidades)
     .slice(0, 10);
 
-  const vendidos = new Set(items.map((i) => i.producto_id));
+  // Un producto vendido como bono también tuvo movimiento.
+  const vendidos = new Set(todosLosItems.map((i) => i.producto_id));
   const sinMovimiento = productos.filter((p) => !vendidos.has(p.id));
 
   const valorVenta = productos.reduce((s, p) => s + p.stock * p.precio_venta, 0);
@@ -176,7 +190,17 @@ export default async function ReportesPage({
         </div>
         <AccionesReporte
           periodo={etiquetaPeriodo}
-          resumen={{ ingresos, totalGastos, totalCompras, resultado, ventas: ventas.length }}
+          resumen={{
+            ingresos,
+            totalBonos,
+            totalExtra,
+            totalGastos,
+            totalCompras,
+            resultado,
+            ventas: ventas.length,
+            ventasBonos: bonos.length,
+            ventasExtra: extras.length,
+          }}
           porCategoria={porCategoria}
           porVendedor={porVendedor}
           porMetodo={porMetodo}
@@ -215,8 +239,10 @@ export default async function ReportesPage({
             {formatQ(resultado)}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Ventas {formatQ(ingresos)} − gastos {formatQ(totalGastos)} − compras{" "}
-            {formatQ(totalCompras)}
+            Ventas {formatQ(ingresos)}
+            {totalBonos > 0 && ` + bonos ${formatQ(totalBonos)}`}
+            {totalExtra > 0 && ` + ingresos extra ${formatQ(totalExtra)}`} − gastos{" "}
+            {formatQ(totalGastos)} − compras {formatQ(totalCompras)}
           </p>
         </CardContent>
       </Card>
@@ -245,6 +271,20 @@ export default async function ReportesPage({
           label="Compras"
           valor={formatQ(totalCompras)}
           color="text-destructive"
+        />
+        <Kpi
+          icon={<Gift className="h-4 w-4" />}
+          label="Venta de bonos"
+          valor={formatQ(totalBonos)}
+          nota={`${bonos.length} ventas · aparte`}
+          color="text-violet-700"
+        />
+        <Kpi
+          icon={<PlusCircle className="h-4 w-4" />}
+          label="Ingresos extra"
+          valor={formatQ(totalExtra)}
+          nota={`${extras.length} ventas · aparte`}
+          color="text-amber-700"
         />
       </div>
 

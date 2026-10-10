@@ -7,7 +7,9 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { formatQ, folioVenta, hoyGT, fechaCortaGT } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Categoria, MetodoPago, Rol } from "@/lib/database.types";
+import type { Categoria, MetodoPago, Rol, TipoVenta } from "@/lib/database.types";
+import { TIPOS_VENTA, tipoVentaClase } from "@/lib/tipos-venta";
+import { TipoVentaBadge } from "@/components/ventas/tipo-venta-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,8 +84,14 @@ export function POS({
   const [cliente, setCliente] = useState("");
   const [descuento, setDescuento] = useState("");
   const [fecha, setFecha] = useState(() => hoyGT());
+  const [tipo, setTipo] = useState<TipoVenta>("normal");
   const [procesando, setProcesando] = useState(false);
-  const [resultado, setResultado] = useState<{ folio: number; total: number; fecha: string } | null>(null);
+  const [resultado, setResultado] = useState<{
+    folio: number;
+    total: number;
+    fecha: string;
+    tipo: TipoVenta;
+  } | null>(null);
   const [grupoAbierto, setGrupoAbierto] = useState<{
     nombre: string;
     items: ProductoPOS[];
@@ -222,6 +230,7 @@ export function POS({
     setDescuento("");
     setMetodo("efectivo");
     setFecha(hoyGT());
+    setTipo("normal");
     setBusqueda("");
     setResultado(null);
     router.refresh(); // recarga stock actualizado
@@ -250,6 +259,7 @@ export function POS({
       p_descuento: esAdmin ? descNum : 0,
       p_nota: null,
       p_fecha: fecha,
+      p_tipo: tipo,
     });
 
     setProcesando(false);
@@ -260,7 +270,7 @@ export function POS({
     }
 
     const res = data as { folio: number; total: number };
-    setResultado({ folio: res.folio, total: res.total, fecha });
+    setResultado({ folio: res.folio, total: res.total, fecha, tipo });
   }
 
   // ---------- Pantalla de éxito ----------
@@ -279,6 +289,7 @@ export function POS({
             Registrada con fecha {fechaCortaGT(resultado.fecha)}
           </p>
         )}
+        <TipoVentaBadge tipo={resultado.tipo} className="mt-2" />
         <p className="mt-4 text-4xl font-bold text-primary">
           {formatQ(resultado.total)}
         </p>
@@ -556,6 +567,31 @@ export function POS({
                   />
                 </div>
               )}
+            </div>
+
+            {/* Tipo de venta: normal por defecto; bonos/extra se separan en reportes */}
+            <div className="space-y-1.5">
+              <Label>Tipo de venta</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {TIPOS_VENTA.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setTipo(t.value)}
+                    aria-pressed={tipo === t.value}
+                    className={cn(
+                      "h-10 rounded-lg border text-sm font-medium transition-colors",
+                      tipo === t.value
+                        ? t.value === "normal"
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : tipoVentaClase[t.value]
+                        : "bg-card hover:bg-accent",
+                    )}
+                  >
+                    {t.corto}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Fecha de la venta (por defecto hoy; permite ventas pasadas) */}
