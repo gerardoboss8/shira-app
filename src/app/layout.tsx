@@ -3,6 +3,8 @@ import { DM_Sans, Poppins } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/sonner";
+import { getNegocio } from "@/lib/negocio";
+import { NEGOCIOS } from "@/lib/negocios";
 
 const dmSans = DM_Sans({
   variable: "--font-sans",
@@ -15,28 +17,40 @@ const poppins = Poppins({
   weight: ["500", "600", "700"],
 });
 
-export const metadata: Metadata = {
-  title: "Librería Shira",
-  description: "Sistema interno de ventas e inventario · Librería Shira",
-  manifest: "/manifest.json",
-  appleWebApp: { capable: true, title: "Shira", statusBarStyle: "default" },
-};
+// Nombre, íconos y color cambian según el negocio elegido (cookie).
+// Antes de elegir se muestra la marca de Shira.
+export async function generateMetadata(): Promise<Metadata> {
+  const n = (await getNegocio()) ?? NEGOCIOS.shira;
+  return {
+    title: n.nombre,
+    description: `Sistema interno de ventas e inventario · ${n.nombre}`,
+    manifest: n.manifest,
+    icons: { icon: n.icono, apple: n.appleIcon },
+    appleWebApp: { capable: true, title: n.nombreCorto, statusBarStyle: "default" },
+  };
+}
 
-export const viewport: Viewport = {
-  themeColor: "#176BE0",
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-};
+export async function generateViewport(): Promise<Viewport> {
+  const n = (await getNegocio()) ?? NEGOCIOS.shira;
+  return {
+    themeColor: n.themeColor,
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const negocio = await getNegocio();
+
   return (
     <html
       lang="es"
+      data-negocio={negocio?.id ?? "shira"}
       className={`${dmSans.variable} ${poppins.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">

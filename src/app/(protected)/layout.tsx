@@ -1,4 +1,5 @@
 import { requireProfile } from "@/lib/auth";
+import { requireNegocio } from "@/lib/negocio";
 import { AppShell } from "@/components/app-shell";
 
 export default async function ProtectedLayout({
@@ -6,10 +7,10 @@ export default async function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const profile = await requireProfile();
+  const [profile, negocio] = await Promise.all([requireProfile(), requireNegocio()]);
 
   return (
-    <AppShell nombre={profile.nombre} role={profile.role}>
+    <AppShell nombre={profile.nombre} role={profile.role} negocioId={negocio.id}>
       {children}
     </AppShell>
   );

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { requireNegocio } from "@/lib/negocio";
 import { formatQ, hoyGT, fechaCortaGT } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,7 +37,7 @@ export default async function ReportesPage({
 }: {
   searchParams: Promise<{ periodo?: string }>;
 }) {
-  const profile = await requireProfile();
+  const [profile, negocio] = await Promise.all([requireProfile(), requireNegocio()]);
   // Reportes son de socios y contador
   if (profile.role === "vendedor") redirect("/");
 
@@ -51,19 +52,26 @@ export default async function ReportesPage({
     supabase
       .from("ventas")
       .select("id, total, metodo_pago, tipo, vendedor:profiles(nombre)")
+      .eq("negocio_id", negocio.id)
       .eq("estado", "completada")
       .gte("fecha", desdeTs),
     supabase
       .from("venta_items")
       .select(
-        "cantidad, total_linea, producto_id, producto:productos(nombre, sku, categoria:categorias(nombre, orden)), venta:ventas!inner(fecha, estado, tipo)",
+        "cantidad, total_linea, producto_id, producto:productos(nombre, sku, categoria:categorias(nombre, orden)), venta:ventas!inner(fecha, estado, tipo, negocio_id)",
       )
+      .eq("venta.negocio_id", negocio.id)
       .eq("venta.estado", "completada")
       .gte("venta.fecha", desdeTs),
-    supabase.from("gastos").select("tipo, categoria, monto").gte("fecha", desdeFecha),
+    supabase
+      .from("gastos")
+      .select("tipo, categoria, monto")
+      .eq("negocio_id", negocio.id)
+      .gte("fecha", desdeFecha),
     supabase
       .from("productos")
       .select("id, nombre, sku, stock, precio_venta, costo")
+      .eq("negocio_id", negocio.id)
       .eq("activo", true),
   ]);
 
@@ -189,6 +197,7 @@ export default async function ReportesPage({
           </p>
         </div>
         <AccionesReporte
+          negocio={negocio.nombre}
           periodo={etiquetaPeriodo}
           resumen={{
             ingresos,

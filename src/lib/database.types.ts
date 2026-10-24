@@ -11,6 +11,8 @@ export type MetodoPago = "efectivo" | "tarjeta" | "transferencia" | "otro";
 export type EstadoVenta = "completada" | "anulada";
 /** normal = venta del mes; bonos y extra se separan en reportes. */
 export type TipoVenta = "normal" | "bonos" | "extra";
+/** Negocios que comparten la app (tabla `negocios`). */
+export type NegocioId = "shira" | "artisan";
 export type TipoMovimiento =
   | "entrada"
   | "salida_venta"
@@ -42,6 +44,7 @@ export interface Profile {
 
 export interface Categoria {
   id: string;
+  negocio_id: NegocioId;
   nombre: string;
   prefijo: string;
   orden: number;
@@ -49,6 +52,8 @@ export interface Categoria {
 
 export interface Producto {
   id: string;
+  /** Heredado de la categoría (trigger). */
+  negocio_id: NegocioId;
   categoria_id: string;
   nombre: string;
   sku: string;
@@ -65,6 +70,8 @@ export interface Producto {
 
 export interface Venta {
   id: string;
+  negocio_id: NegocioId;
+  /** Correlativo por negocio. */
   folio: number;
   fecha: string;
   vendedor_id: string;
@@ -100,6 +107,7 @@ export interface MovimientoInventario {
 
 export interface Recordatorio {
   id: string;
+  negocio_id: NegocioId;
   titulo: string;
   descripcion: string | null;
   tipo: TipoRecordatorio;
@@ -114,6 +122,7 @@ export interface Recordatorio {
 
 export interface Seguimiento {
   id: string;
+  negocio_id: NegocioId;
   tipo: TipoSeguimiento;
   titulo: string;
   detalle: string | null;
@@ -146,14 +155,14 @@ export interface Database {
   public: {
     Tables: {
       profiles: TableDef<Profile, "activo" | "role" | "created_at">;
-      categorias: TableDef<Categoria, "id" | "orden">;
+      categorias: TableDef<Categoria, "id" | "orden" | "negocio_id">;
       productos: TableDef<
         Producto,
-        "id" | "costo" | "stock" | "stock_minimo" | "activo" | "grupo" | "created_at" | "updated_at"
+        "id" | "negocio_id" | "costo" | "stock" | "stock_minimo" | "activo" | "grupo" | "created_at" | "updated_at"
       >;
       ventas: TableDef<
         Venta,
-        "id" | "folio" | "fecha" | "cliente_nombre" | "descuento" | "estado" | "nota" | "tipo"
+        "id" | "negocio_id" | "folio" | "fecha" | "cliente_nombre" | "descuento" | "estado" | "nota" | "tipo"
       >;
       venta_items: TableDef<VentaItem, "id">;
       movimientos_inventario: TableDef<
@@ -162,11 +171,11 @@ export interface Database {
       >;
       recordatorios: TableDef<
         Recordatorio,
-        "id" | "descripcion" | "tipo" | "fecha" | "recurrente" | "fijado" | "creado_por" | "visible_para" | "completado" | "created_at"
+        "id" | "negocio_id" | "descripcion" | "tipo" | "fecha" | "recurrente" | "fijado" | "creado_por" | "visible_para" | "completado" | "created_at"
       >;
       seguimientos: TableDef<
         Seguimiento,
-        "id" | "detalle" | "contacto" | "estado" | "fecha_compromiso" | "asignado_a" | "anticipo" | "creado_por" | "created_at" | "updated_at"
+        "id" | "negocio_id" | "detalle" | "contacto" | "estado" | "fecha_compromiso" | "asignado_a" | "anticipo" | "creado_por" | "created_at" | "updated_at"
       >;
       seguimiento_notas: TableDef<SeguimientoNota, "id" | "usuario_id" | "created_at">;
     };
@@ -183,8 +192,9 @@ export interface Database {
           /** YYYY-MM-DD. Null u hoy = ahora; pasada = ese día. */
           p_fecha?: string | null;
           p_tipo?: TipoVenta;
+          p_negocio_id?: NegocioId;
         };
-        Returns: { venta_id: string; folio: number; total: number; fecha: string; tipo: TipoVenta };
+        Returns: { venta_id: string; folio: number; total: number; fecha: string; tipo: TipoVenta; negocio_id: NegocioId };
       };
       cambiar_tipo_venta: {
         Args: { p_venta_id: string; p_tipo: TipoVenta };

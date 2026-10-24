@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { hoyGT } from "@/lib/format";
-import type { MetodoPago } from "@/lib/database.types";
+import type { MetodoPago, NegocioId } from "@/lib/database.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,7 +46,7 @@ const METODOS: { value: MetodoPago; label: string }[] = [
   { value: "otro", label: "Otro" },
 ];
 
-export function NuevoGasto({ userId }: { userId: string }) {
+export function NuevoGasto({ userId, negocioId }: { userId: string; negocioId: NegocioId }) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [tipo, setTipo] = useState<"gasto" | "compra">("gasto");
@@ -90,6 +90,7 @@ export function NuevoGasto({ userId }: { userId: string }) {
       descripcion: descripcion.trim() || null,
       metodo_pago: metodo,
       registrado_por: userId,
+      negocio_id: negocioId,
     });
     setProcesando(false);
 

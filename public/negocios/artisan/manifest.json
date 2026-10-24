@@ -1,0 +1,25 @@
+{
+  "name": "Artisan",
+  "short_name": "Artisan",
+  "description": "Sistema interno de ventas e inventario",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#2E1A5C",
+  "lang": "es-GT",
+  "icons": [
+    {
+      "src": "/negocios/artisan/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/negocios/artisan/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import { Download, Printer } from "lucide-react";
 type Fila = { nombre: string; total: number; unidades: number };
 
 export function AccionesReporte({
+  negocio,
   periodo,
   resumen,
   porCategoria,
@@ -14,6 +15,7 @@ export function AccionesReporte({
   porMetodo,
   topProductos,
 }: {
+  negocio: string;
   periodo: string;
   resumen: {
     ingresos: number;
@@ -36,7 +38,7 @@ export function AccionesReporte({
     const q = (n: number) => n.toFixed(2);
     const lineas: string[] = [];
 
-    lineas.push(esc(`Reporte Librería Shira · ${periodo} · generado ${hoyGT()}`));
+    lineas.push(esc(`Reporte ${negocio} · ${periodo} · generado ${hoyGT()}`));
     lineas.push("");
     lineas.push("RESUMEN");
     lineas.push("Concepto,Monto");
@@ -69,7 +71,13 @@ export function AccionesReporte({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `reporte_shira_${hoyGT()}.csv`;
+    // "Librería Shira" -> reporte_libreria_shira_2026-10-23.csv
+    const archivo = negocio
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .toLowerCase();
+    a.download = `reporte_${archivo}_${hoyGT()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }

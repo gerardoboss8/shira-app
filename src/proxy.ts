@@ -12,7 +12,8 @@ export const config = {
      * Todas las rutas excepto:
      * - _next/static, _next/image
      * - favicon, manifest, íconos e imágenes
+     * - /negocios (marca de cada negocio: logos, íconos y manifest)
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|negocios/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

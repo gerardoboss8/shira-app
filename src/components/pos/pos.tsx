@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { formatQ, folioVenta, hoyGT, fechaCortaGT } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Categoria, MetodoPago, Rol, TipoVenta } from "@/lib/database.types";
+import type { Categoria, MetodoPago, NegocioId, Rol, TipoVenta } from "@/lib/database.types";
 import { TIPOS_VENTA, tipoVentaClase } from "@/lib/tipos-venta";
 import { TipoVentaBadge } from "@/components/ventas/tipo-venta-badge";
 import { Button } from "@/components/ui/button";
@@ -67,10 +67,12 @@ const METODOS: { value: MetodoPago; label: string }[] = [
 
 export function POS({
   role,
+  negocioId,
   categorias,
   productos,
 }: {
   role: Rol;
+  negocioId: NegocioId;
   categorias: Categoria[];
   productos: ProductoPOS[];
 }) {
@@ -260,6 +262,7 @@ export function POS({
       p_nota: null,
       p_fecha: fecha,
       p_tipo: tipo,
+      p_negocio_id: negocioId,
     });
 
     setProcesando(false);

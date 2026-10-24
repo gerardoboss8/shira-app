@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireProfile, esAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { requireNegocio } from "@/lib/negocio";
 import { formatQ, fechaHoraGT, folioVenta } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,7 @@ export default async function VentaDetallePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const profile = await requireProfile();
+  const [profile, negocio] = await Promise.all([requireProfile(), requireNegocio()]);
   const { id } = await params;
   const supabase = await createClient();
 
@@ -37,7 +38,8 @@ export default async function VentaDetallePage({
       "id, folio, fecha, cliente_nombre, metodo_pago, subtotal, descuento, total, estado, nota, tipo, vendedor:profiles(nombre)",
     )
     .eq("id", id)
-    .single();
+    .eq("negocio_id", negocio.id)
+    .maybeSingle();
 
   if (!venta) notFound();
 

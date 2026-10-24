@@ -37,6 +37,8 @@
   --color-primary: var(--primary);
   --color-gold: var(--gold);
   --color-navy: var(--navy);
+  --color-header: var(--header);
+  --color-header-foreground: var(--header-foreground);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -73,6 +75,8 @@
   --ring: oklch(0.56 0.185 259);
   --gold: oklch(0.8 0.15 82);
   --navy: oklch(0.28 0.08 265);
+  --header: var(--card);
+  --header-foreground: var(--foreground);
   --chart-1: oklch(0.56 0.185 259);
   --chart-2: oklch(0.8 0.15 82);
   --chart-3: oklch(0.45 0.14 259);
@@ -87,6 +91,47 @@
   --sidebar-accent-foreground: oklch(0.45 0.14 259);
   --sidebar-border: oklch(0.91 0.01 255);
   --sidebar-ring: oklch(0.56 0.185 259);
+}
+
+/* Paleta Artisan (del logo): morado #2E1A5C, coral #FF5A5A,
+   verde lima #CDE36A, amarillo #FFDE5A, blanco. Se activa con
+   <html data-negocio="artisan"> (ver layout raíz). */
+[data-negocio="artisan"] {
+  --background: #f7f5fb;
+  --foreground: #241a3d;
+  --card: #ffffff;
+  --card-foreground: #241a3d;
+  --popover: #ffffff;
+  --popover-foreground: #241a3d;
+  --primary: #2e1a5c;
+  --primary-foreground: #ffffff;
+  --secondary: #efebf7;
+  --secondary-foreground: #2e1a5c;
+  --muted: #f1eef7;
+  --muted-foreground: #6b6283;
+  --accent: #ebe6f6;
+  --accent-foreground: #2e1a5c;
+  --destructive: #e5484d;
+  --border: #e3dded;
+  --input: #e3dded;
+  --ring: #ff5a5a;
+  --gold: #ffde5a;
+  --navy: #1f1240;
+  --header: #2e1a5c;
+  --header-foreground: #ffffff;
+  --chart-1: #2e1a5c;
+  --chart-2: #ff5a5a;
+  --chart-3: #cde36a;
+  --chart-4: #ffde5a;
+  --chart-5: #8a7bb0;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #241a3d;
+  --sidebar-primary: #2e1a5c;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ebe6f6;
+  --sidebar-accent-foreground: #2e1a5c;
+  --sidebar-border: #e3dded;
+  --sidebar-ring: #ff5a5a;
 }
 
 .dark {

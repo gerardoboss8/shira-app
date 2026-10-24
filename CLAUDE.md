@@ -26,6 +26,17 @@ recordatorios/fechas litúrgicas y seguimientos de pedidos.
 - Los precios se **congelan** en `venta_items` al momento de vender.
 - Roles: `admin` (socios, todo), `vendedor` (vende, consulta), `contador` (solo lectura).
 
+## Multi-negocio (Shira + Artisan)
+La misma app, URL y base atienden a **Librería Shira** y a **Artisan** (manteles y
+accesorios de cocina). Tras el login se elige el negocio en `/negocio`; queda en la
+cookie `negocio` y `requireNegocio()` (`src/lib/negocio.ts`) lo lee en el servidor.
+- **Toda consulta filtra por `negocio_id`** (categorias, productos, ventas, gastos,
+  recordatorios, seguimientos). `productos.negocio_id` lo hereda la categoría por trigger.
+- `registrar_venta` recibe `p_negocio_id`; el folio es correlativo **por negocio**.
+- Marca (logos, íconos, manifest) en `src/lib/negocios.ts`; colores en `globals.css`
+  bajo `[data-negocio="artisan"]`. Archivos en `public/negocios/<id>/`.
+- Migración: `supabase/migrations/0009_negocios.sql`.
+
 ## Acceso con usuario simple (sin correo)
 Los vendedores entran escribiendo solo su usuario. Supabase Auth siempre necesita
 un correo, así que el login traduce con `aCorreoDeAcceso()` (`src/lib/usuarios.ts`):

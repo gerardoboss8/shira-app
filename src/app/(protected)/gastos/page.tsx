@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireProfile, puedeVender } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { requireNegocio } from "@/lib/negocio";
 import { formatQ, fechaCortaGT, hoyGT } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,7 +35,7 @@ export default async function GastosPage({
 }: {
   searchParams: Promise<{ periodo?: string; tipo?: string }>;
 }) {
-  const profile = await requireProfile();
+  const [profile, negocio] = await Promise.all([requireProfile(), requireNegocio()]);
   const { periodo: p, tipo: t } = await searchParams;
   const periodo: Periodo = p === "hoy" || p === "semana" ? (p as Periodo) : "mes";
   const filtro: Filtro = t === "gasto" || t === "compra" ? (t as Filtro) : "todos";
@@ -45,6 +46,7 @@ export default async function GastosPage({
     .select(
       "id, fecha, tipo, categoria, proveedor, descripcion, monto, metodo_pago, registrado:profiles(nombre)",
     )
+    .eq("negocio_id", negocio.id)
     .gte("fecha", desdeDe(periodo))
     .order("fecha", { ascending: false })
     .order("created_at", { ascending: false });
@@ -76,7 +78,7 @@ export default async function GastosPage({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold">Gastos y compras</h1>
-        {puedeVender(profile) && <NuevoGasto userId={profile.id} />}
+        {puedeVender(profile) && <NuevoGasto userId={profile.id} negocioId={negocio.id} />}
       </div>
 
       {/* Resumen */}

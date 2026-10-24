@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { requireNegocio } from "@/lib/negocio";
 import { formatQ, fechaHoraGT, folioVenta, hoyGT } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { TipoVenta } from "@/lib/database.types";
@@ -56,7 +57,7 @@ export default async function VentasPage({
 }: {
   searchParams: Promise<{ periodo?: string; tipo?: string }>;
 }) {
-  await requireProfile();
+  const [, negocio] = await Promise.all([requireProfile(), requireNegocio()]);
   const { periodo: p, tipo: t } = await searchParams;
   const periodo: Periodo =
     p === "semana" || p === "mes" || p === "todo" ? (p as Periodo) : "hoy";
@@ -68,6 +69,7 @@ export default async function VentasPage({
     .select(
       "id, folio, fecha, cliente_nombre, metodo_pago, total, estado, tipo, vendedor:profiles(nombre)",
     )
+    .eq("negocio_id", negocio.id)
     .order("fecha", { ascending: false });
   if (periodo !== "todo") query = query.gte("fecha", desdeDe(periodo));
   else query = query.limit(LIMITE_TODO);

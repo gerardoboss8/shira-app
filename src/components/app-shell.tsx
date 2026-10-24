@@ -6,7 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { Rol } from "@/lib/database.types";
+import type { NegocioId, Rol } from "@/lib/database.types";
+import { NEGOCIOS } from "@/lib/negocios";
 import {
   Home,
   ShoppingCart,
@@ -15,6 +16,7 @@ import {
   Wallet,
   BarChart3,
   LogOut,
+  ArrowLeftRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -50,16 +52,19 @@ const rolLabel: Record<Rol, string> = {
 export function AppShell({
   nombre,
   role,
+  negocioId,
   children,
 }: {
   nombre: string;
   role: Rol;
+  negocioId: NegocioId;
   children: ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [saliendo, setSaliendo] = useState(false);
 
+  const negocio = NEGOCIOS[negocioId];
   const items = NAV.filter((i) => !i.roles || i.roles.includes(role));
 
   // El item activo es el de href más específico que coincide con la ruta.
@@ -91,18 +96,28 @@ export function AppShell({
   return (
     <div className="flex min-h-dvh flex-col">
       {/* Cabecera */}
-      <header className="sticky top-0 z-30 border-b bg-card shadow-sm">
+      <header className="sticky top-0 z-30 border-b bg-header text-header-foreground shadow-sm">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4">
-          <Link href="/" className="flex items-center">
-            <Image
-              src="/logo.png"
-              alt="Librería Shira"
-              width={415}
-              height={180}
-              priority
-              className="h-7 w-auto"
-            />
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/" className="flex items-center">
+              <Image
+                src={negocio.logoHeader.src}
+                alt={negocio.nombre}
+                width={negocio.logoHeader.width}
+                height={negocio.logoHeader.height}
+                priority
+                className={cn("w-auto", negocio.id === "artisan" ? "h-9" : "h-7")}
+              />
+            </Link>
+            <Link
+              href="/negocio"
+              title="Cambiar de negocio"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-header-foreground/60 transition-colors hover:bg-header-foreground/10 hover:text-header-foreground"
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+              <span className="sr-only">Cambiar de negocio</span>
+            </Link>
+          </div>
 
           {/* Nav horizontal (desktop) */}
           <nav className="hidden items-center gap-1 md:flex">
@@ -116,7 +131,7 @@ export function AppShell({
                     "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
                     activo(i.href)
                       ? "bg-accent font-medium text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      : "text-header-foreground/70 hover:bg-header-foreground/10 hover:text-header-foreground",
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -127,7 +142,14 @@ export function AppShell({
           </nav>
 
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground outline-none ring-ring/40 focus-visible:ring-2">
+            <DropdownMenuTrigger
+              className={cn(
+                "flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium outline-none ring-ring/40 focus-visible:ring-2",
+                negocio.id === "artisan"
+                  ? "bg-[#ff5a5a] text-white"
+                  : "bg-primary text-primary-foreground",
+              )}
+            >
               {iniciales}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
@@ -140,6 +162,11 @@ export function AppShell({
                   </div>
                 </DropdownMenuLabel>
               </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem render={<Link href="/negocio" />}>
+                <ArrowLeftRight className="h-4 w-4" /> Cambiar de negocio
+                <span className="ml-auto text-xs text-muted-foreground">{negocio.nombreCorto}</span>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               {(role === "admin" || role === "contador") && (
                 <>

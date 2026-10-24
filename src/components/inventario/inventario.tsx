@@ -67,10 +67,13 @@ export function Inventario({
   productos,
   categorias,
   esAdmin,
+  gruposSugeridos = [],
 }: {
   productos: ProductoInv[];
   categorias: Categoria[];
   esAdmin: boolean;
+  /** Subcategorías propias del negocio, aunque aún no tengan productos. */
+  gruposSugeridos?: string[];
 }) {
   const router = useRouter();
   const [busqueda, setBusqueda] = useState("");
@@ -104,8 +107,14 @@ export function Inventario({
   const buscando = busqueda.trim().length > 0;
 
   const gruposExistentes = useMemo(
-    () => [...new Set(productos.map((p) => p.grupo).filter((g): g is string => !!g))].sort(),
-    [productos],
+    () =>
+      [
+        ...new Set([
+          ...gruposSugeridos,
+          ...productos.map((p) => p.grupo).filter((g): g is string => !!g),
+        ]),
+      ].sort(),
+    [productos, gruposSugeridos],
   );
 
   const grupos = useMemo(() => {

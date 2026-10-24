@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { aCorreoDeAcceso } from "@/lib/usuarios";
+import { LISTA_NEGOCIOS } from "@/lib/negocios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,7 +48,8 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace("/");
+    // Cada vez que se entra, se elige el negocio con el que se trabajará.
+    router.replace("/negocio");
     router.refresh();
   }
 
@@ -59,14 +61,19 @@ export default function LoginPage() {
           className="space-y-4 rounded-2xl bg-card p-6 shadow-2xl"
         >
           <div className="mb-2 flex flex-col items-center">
-            <Image
-              src="/logo.png"
-              alt="Librería Shira"
-              width={415}
-              height={180}
-              priority
-              className="h-auto w-48"
-            />
+            <div className="flex items-center justify-center gap-5">
+              {LISTA_NEGOCIOS.map((n) => (
+                <Image
+                  key={n.id}
+                  src={n.logo.src}
+                  alt={n.nombre}
+                  width={n.logo.width}
+                  height={n.logo.height}
+                  priority
+                  className="h-14 w-auto"
+                />
+              ))}
+            </div>
             <p className="mt-1 text-sm text-muted-foreground">
               Sistema interno de ventas
             </p>

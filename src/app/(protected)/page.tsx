@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireProfile, esAdmin, puedeVender } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { requireNegocio } from "@/lib/negocio";
 import { formatQ, fechaLargaGT, fechaCortaGT, hoyGT } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +10,7 @@ import { ShoppingCart, Pin, CalendarDays, Receipt, TrendingUp } from "lucide-rea
 export const dynamic = "force-dynamic";
 
 export default async function InicioPage() {
-  const profile = await requireProfile();
+  const [profile, negocio] = await Promise.all([requireProfile(), requireNegocio()]);
   const supabase = await createClient();
   const admin = esAdmin(profile);
 
@@ -19,6 +20,7 @@ export default async function InicioPage() {
     supabase
       .from("recordatorios")
       .select("id, titulo, descripcion")
+      .eq("negocio_id", negocio.id)
       .eq("fijado", true)
       .eq("completado", false)
       .order("created_at", { ascending: false })
@@ -26,6 +28,7 @@ export default async function InicioPage() {
     supabase
       .from("recordatorios")
       .select("id, titulo, fecha")
+      .eq("negocio_id", negocio.id)
       .eq("tipo", "fecha_importante")
       .gte("fecha", hoyGT())
       .order("fecha", { ascending: true })
@@ -34,6 +37,7 @@ export default async function InicioPage() {
       ? supabase
           .from("ventas")
           .select("total, tipo")
+          .eq("negocio_id", negocio.id)
           .eq("estado", "completada")
           .gte("fecha", desdeHoy)
       : Promise.resolve({ data: null }),
