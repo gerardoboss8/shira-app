@@ -9,7 +9,18 @@ import { TIPOS_VENTA, esTipoVenta, tipoVentaLabel } from "@/lib/tipos-venta";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TipoVentaBadge } from "@/components/ventas/tipo-venta-badge";
-import { ChevronRight } from "lucide-react";
+import { SelectorMes } from "@/components/selector-mes";
+import { traerTodo } from "@/lib/supabase/paginar";
+import {
+  esMes,
+  mesActualGT,
+  mesesDisponibles,
+  nombreMes,
+  rangoMes,
+  sumarMeses,
+  variacion,
+} from "@/lib/meses";
+import { BarChart3, ChevronRight, Download } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -33,50 +44,88 @@ const periodoLabel: Record<Periodo, string> = {
   todo: "Todo",
 };
 
-function desdeDe(periodo: Exclude<Periodo, "todo">): string {
+function desdeDe(periodo: Exclude<Periodo, "todo" | "mes">): string {
   const hoy = hoyGT(); // YYYY-MM-DD
   if (periodo === "hoy") return `${hoy}T00:00:00-06:00`;
   const [y, m, d] = hoy.split("-").map(Number);
-  if (periodo === "mes") {
-    return `${y}-${String(m).padStart(2, "0")}-01T00:00:00-06:00`;
-  }
   // semana: últimos 7 días
   const base = new Date(Date.UTC(y, m - 1, d));
   base.setUTCDate(base.getUTCDate() - 6);
   return `${base.toISOString().slice(0, 10)}T00:00:00-06:00`;
 }
 
-function hrefVentas(periodo: Periodo, tipo: FiltroTipo): string {
-  const qs = new URLSearchParams({ periodo });
-  if (tipo !== "todas") qs.set("tipo", tipo);
+function filtrosVentas(periodo: Periodo, tipo: FiltroTipo, mes?: string): Record<string, string> {
+  const qs: Record<string, string> = { periodo };
+  if (periodo === "mes" && mes) qs.mes = mes;
+  if (tipo !== "todas") qs.tipo = tipo;
+  return qs;
+}
+
+function hrefVentas(periodo: Periodo, tipo: FiltroTipo, mes?: string): string {
+  const qs = new URLSearchParams(filtrosVentas(periodo, tipo, mes));
   return `/ventas?${qs.toString()}`;
 }
 
 export default async function VentasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string; tipo?: string }>;
+  searchParams: Promise<{ periodo?: string; tipo?: string; mes?: string }>;
 }) {
-  const [, negocio] = await Promise.all([requireProfile(), requireNegocio()]);
-  const { periodo: p, tipo: t } = await searchParams;
+  const [profile, negocio] = await Promise.all([requireProfile(), requireNegocio()]);
+  const { periodo: p, tipo: t, mes: mesParam } = await searchParams;
   const periodo: Periodo =
     p === "semana" || p === "mes" || p === "todo" ? (p as Periodo) : "hoy";
   const filtroTipo: FiltroTipo = esTipoVenta(t) ? t : "todas";
+  const meses = mesesDisponibles();
+  const mes = esMes(mesParam) && meses.includes(mesParam) ? mesParam : mesActualGT();
+  const mesPrevio = sumarMeses(mes, -1);
+  const puedeReportes = profile.role === "admin" || profile.role === "contador";
 
   const supabase = await createClient();
-  let query = supabase
-    .from("ventas")
-    .select(
-      "id, folio, fecha, cliente_nombre, metodo_pago, total, estado, tipo, vendedor:profiles(nombre)",
-    )
-    .eq("negocio_id", negocio.id)
-    .order("fecha", { ascending: false });
-  if (periodo !== "todo") query = query.gte("fecha", desdeDe(periodo));
-  else query = query.limit(LIMITE_TODO);
-  if (filtroTipo !== "todas") query = query.eq("tipo", filtroTipo);
-  const { data } = await query;
+  const consulta = () => {
+    let q = supabase
+      .from("ventas")
+      .select(
+        "id, folio, fecha, cliente_nombre, metodo_pago, total, estado, tipo, vendedor:profiles(nombre)",
+      )
+      .eq("negocio_id", negocio.id)
+      .order("fecha", { ascending: false })
+      .order("id");
+    if (periodo === "mes") {
+      const { desdeTs, hastaTs } = rangoMes(mes);
+      q = q.gte("fecha", desdeTs).lt("fecha", hastaTs);
+    } else if (periodo !== "todo") {
+      q = q.gte("fecha", desdeDe(periodo));
+    }
+    if (filtroTipo !== "todas") q = q.eq("tipo", filtroTipo);
+    return q;
+  };
 
-  const ventas = (data ?? []) as unknown as {
+  // Para comparar: ventas completadas del mes anterior (solo montos).
+  const consultaPrevia = () => {
+    const { desdeTs, hastaTs } = rangoMes(mesPrevio);
+    return supabase
+      .from("ventas")
+      .select("id, total, tipo")
+      .eq("negocio_id", negocio.id)
+      .eq("estado", "completada")
+      .gte("fecha", desdeTs)
+      .lt("fecha", hastaTs)
+      .order("id");
+  };
+
+  const [data, previas] = await Promise.all([
+    periodo === "todo"
+      ? consulta()
+          .limit(LIMITE_TODO)
+          .then((res) => res.data ?? [])
+      : traerTodo((d, h) => consulta().range(d, h)),
+    periodo === "mes"
+      ? traerTodo<{ total: number; tipo: TipoVenta }>((d, h) => consultaPrevia().range(d, h))
+      : Promise.resolve([]),
+  ]);
+
+  const ventas = data as unknown as {
     id: string;
     folio: number;
     fecha: string;
@@ -95,6 +144,11 @@ export default async function VentasPage({
 
   // Con "todas", el total grande son las ventas normales; bonos y extra van aparte.
   const tipoPrincipal: TipoVenta = filtroTipo === "todas" ? "normal" : filtroTipo;
+  // Comparación contra el mes anterior (mismo tipo principal)
+  const previasTipo = previas.filter((v) => (v.tipo ?? "normal") === tipoPrincipal);
+  const totalPrevio = previasTipo.reduce((s, v) => s + Number(v.total), 0);
+  const cambio = variacion(totalDe(tipoPrincipal), totalPrevio);
+
   const separados =
     filtroTipo === "todas"
       ? TIPOS_VENTA.filter((x) => x.value !== "normal" && cuantasDe(x.value) > 0)
@@ -102,27 +156,43 @@ export default async function VentasPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold">Ventas</h1>
+        {puedeReportes && periodo === "mes" && (
+          <a
+            href={`/ventas/exportar?${new URLSearchParams(filtrosVentas(periodo, filtroTipo, mes)).toString()}`}
+            className="flex items-center gap-1.5 rounded-lg border bg-card px-3 py-1.5 text-sm font-medium hover:bg-accent"
+          >
+            <Download className="h-4 w-4" /> Descargar mes
+          </a>
+        )}
       </div>
 
       {/* Filtros */}
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
           {(["hoy", "semana", "mes", "todo"] as Periodo[]).map((per) => (
-            <Chip key={per} href={hrefVentas(per, filtroTipo)} activo={periodo === per}>
+            <Chip key={per} href={hrefVentas(per, filtroTipo, mes)} activo={periodo === per}>
               {periodoLabel[per]}
             </Chip>
           ))}
         </div>
+        {periodo === "mes" && (
+          <SelectorMes
+            ruta="/ventas"
+            mes={mes}
+            meses={meses}
+            params={filtrosVentas(periodo, filtroTipo)}
+          />
+        )}
         <div className="flex flex-wrap gap-2">
-          <Chip href={hrefVentas(periodo, "todas")} activo={filtroTipo === "todas"} suave>
+          <Chip href={hrefVentas(periodo, "todas", mes)} activo={filtroTipo === "todas"} suave>
             Todos los tipos
           </Chip>
           {TIPOS_VENTA.map((x) => (
             <Chip
               key={x.value}
-              href={hrefVentas(periodo, x.value)}
+              href={hrefVentas(periodo, x.value, mes)}
               activo={filtroTipo === x.value}
               suave
             >
@@ -138,7 +208,8 @@ export default async function VentasPage({
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">
               {tipoPrincipal === "normal" ? "Ventas normales" : tipoVentaLabel[tipoPrincipal]}{" "}
-              · {periodoLabel[periodo].toLowerCase()} · {cuantasDe(tipoPrincipal)}
+              · {periodo === "mes" ? nombreMes(mes) : periodoLabel[periodo].toLowerCase()} ·{" "}
+              {cuantasDe(tipoPrincipal)}
             </span>
             <span className="text-xl font-bold text-primary">
               {formatQ(totalDe(tipoPrincipal))}
@@ -152,6 +223,24 @@ export default async function VentasPage({
               <span className="font-semibold">{formatQ(totalDe(x.value))}</span>
             </div>
           ))}
+          {periodo === "mes" && (
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t pt-2 text-sm">
+              <span className="text-muted-foreground">
+                vs {nombreMes(mesPrevio)}: {formatQ(totalPrevio)} · {previasTipo.length}
+              </span>
+              <span className="flex items-center gap-3">
+                <Cambio valor={cambio} />
+                {puedeReportes && (
+                  <Link
+                    href={`/reportes?${new URLSearchParams({ periodo: "mes", mes }).toString()}`}
+                    className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  >
+                    <BarChart3 className="h-3.5 w-3.5" /> Comparar meses
+                  </Link>
+                )}
+              </span>
+            </div>
+          )}
           {periodo === "todo" && ventas.length >= LIMITE_TODO && (
             <p className="text-xs text-muted-foreground">
               Mostrando las {LIMITE_TODO} ventas más recientes.
@@ -205,6 +294,17 @@ export default async function VentasPage({
         </div>
       )}
     </div>
+  );
+}
+
+/** Variación contra el mes anterior: ▲ en verde, ▼ en rojo. */
+function Cambio({ valor }: { valor: number | null }) {
+  if (valor === null) return <span className="text-xs text-muted-foreground">sin base</span>;
+  const sube = valor >= 0;
+  return (
+    <span className={cn("text-sm font-semibold", sube ? "text-emerald-700" : "text-destructive")}>
+      {sube ? "▲" : "▼"} {Math.abs(valor).toFixed(1)} %
+    </span>
   );
 }
 

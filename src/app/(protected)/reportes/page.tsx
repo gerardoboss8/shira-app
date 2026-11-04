@@ -8,7 +8,22 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { AccionesReporte } from "@/components/reportes/acciones-reporte";
 import type { TipoVenta } from "@/lib/database.types";
+import { SelectorMes } from "@/components/selector-mes";
+import { traerTodo } from "@/lib/supabase/paginar";
+import {
+  esMes,
+  mesActualGT,
+  mesDeTs,
+  mesesDisponibles,
+  nombreMes,
+  nombreMesCorto,
+  rangoMes,
+  variacion,
+} from "@/lib/meses";
 import { TrendingUp, TrendingDown, Wallet, Receipt, Gift, PlusCircle } from "lucide-react";
+
+/** Cuántos meses se muestran en la comparación. */
+const MESES_COMPARACION = 12;
 
 export const dynamic = "force-dynamic";
 
@@ -21,61 +36,116 @@ const metodoLabel: Record<string, string> = {
   otro: "Otro",
 };
 
-/** Devuelve la fecha (YYYY-MM-DD) desde la que arranca el período, en hora de Guatemala. */
-function desdeDe(periodo: Periodo): string {
+/**
+ * Rango [desde, hasta) del período en fechas YYYY-MM-DD de Guatemala.
+ * "hoy" y "semana" llegan hasta mañana; "mes" es el mes elegido completo.
+ */
+function rangoDe(periodo: Periodo, mes: string): { desdeFecha: string; hastaFecha: string } {
+  if (periodo === "mes") return rangoMes(mes);
   const hoy = hoyGT();
   const [y, m, d] = hoy.split("-").map(Number);
-  if (periodo === "hoy") return hoy;
-  if (periodo === "mes") return `${y}-${String(m).padStart(2, "0")}-01`;
-  const base = new Date(Date.UTC(y, m - 1, d));
-  base.setUTCDate(base.getUTCDate() - 6);
-  return base.toISOString().slice(0, 10);
+  const manana = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+  if (periodo === "hoy") return { desdeFecha: hoy, hastaFecha: manana };
+  const base = new Date(Date.UTC(y, m - 1, d - 6));
+  return { desdeFecha: base.toISOString().slice(0, 10), hastaFecha: manana };
 }
 
 export default async function ReportesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string }>;
+  searchParams: Promise<{ periodo?: string; mes?: string }>;
 }) {
   const [profile, negocio] = await Promise.all([requireProfile(), requireNegocio()]);
   // Reportes son de socios y contador
   if (profile.role === "vendedor") redirect("/");
 
-  const { periodo: p } = await searchParams;
+  const { periodo: p, mes: mesParam } = await searchParams;
   const periodo: Periodo = p === "hoy" || p === "semana" ? (p as Periodo) : "mes";
-  const desdeFecha = desdeDe(periodo);
+  const meses = mesesDisponibles();
+  const mes = esMes(mesParam) && meses.includes(mesParam) ? mesParam : mesActualGT();
+  const { desdeFecha, hastaFecha } = rangoDe(periodo, mes);
   const desdeTs = `${desdeFecha}T00:00:00-06:00`;
+  const hastaTs = `${hastaFecha}T00:00:00-06:00`;
+
+  // Comparación: los últimos meses hasta el elegido (sin pasar del primero con datos).
+  const mesesComparados = meses.slice(
+    Math.max(meses.indexOf(mes), 0),
+    Math.max(meses.indexOf(mes), 0) + MESES_COMPARACION,
+  );
+  const compDesde = rangoMes(mesesComparados[mesesComparados.length - 1] ?? mes);
+  const compHasta = rangoMes(mesesComparados[0] ?? mes);
 
   const supabase = await createClient();
 
-  const [ventasRes, itemsRes, gastosRes, productosRes] = await Promise.all([
-    supabase
-      .from("ventas")
-      .select("id, total, metodo_pago, tipo, vendedor:profiles(nombre)")
-      .eq("negocio_id", negocio.id)
-      .eq("estado", "completada")
-      .gte("fecha", desdeTs),
-    supabase
-      .from("venta_items")
-      .select(
-        "cantidad, total_linea, producto_id, producto:productos(nombre, sku, categoria:categorias(nombre, orden)), venta:ventas!inner(fecha, estado, tipo, negocio_id)",
-      )
-      .eq("venta.negocio_id", negocio.id)
-      .eq("venta.estado", "completada")
-      .gte("venta.fecha", desdeTs),
-    supabase
-      .from("gastos")
-      .select("tipo, categoria, monto")
-      .eq("negocio_id", negocio.id)
-      .gte("fecha", desdeFecha),
-    supabase
-      .from("productos")
-      .select("id, nombre, sku, stock, precio_venta, costo")
-      .eq("negocio_id", negocio.id)
-      .eq("activo", true),
-  ]);
+  const [ventasData, itemsData, gastosData, productosRes, compVentas, compGastos] =
+    await Promise.all([
+      traerTodo((d, h) =>
+        supabase
+          .from("ventas")
+          .select("id, total, metodo_pago, tipo, vendedor:profiles(nombre)")
+          .eq("negocio_id", negocio.id)
+          .eq("estado", "completada")
+          .gte("fecha", desdeTs)
+          .lt("fecha", hastaTs)
+          .order("id")
+          .range(d, h),
+      ),
+      traerTodo((d, h) =>
+        supabase
+          .from("venta_items")
+          .select(
+            "cantidad, total_linea, producto_id, producto:productos(nombre, sku, categoria:categorias(nombre, orden)), venta:ventas!inner(fecha, estado, tipo, negocio_id)",
+          )
+          .eq("venta.negocio_id", negocio.id)
+          .eq("venta.estado", "completada")
+          .gte("venta.fecha", desdeTs)
+          .lt("venta.fecha", hastaTs)
+          .order("id")
+          .range(d, h),
+      ),
+      traerTodo((d, h) =>
+        supabase
+          .from("gastos")
+          .select("tipo, categoria, monto")
+          .eq("negocio_id", negocio.id)
+          .gte("fecha", desdeFecha)
+          .lt("fecha", hastaFecha)
+          .order("id")
+          .range(d, h),
+      ),
+      supabase
+        .from("productos")
+        .select("id, nombre, sku, stock, precio_venta, costo")
+        .eq("negocio_id", negocio.id)
+        .eq("activo", true),
+      periodo === "mes"
+        ? traerTodo<{ fecha: string; total: number; tipo: TipoVenta }>((d, h) =>
+            supabase
+              .from("ventas")
+              .select("fecha, total, tipo")
+              .eq("negocio_id", negocio.id)
+              .eq("estado", "completada")
+              .gte("fecha", compDesde.desdeTs)
+              .lt("fecha", compHasta.hastaTs)
+              .order("id")
+              .range(d, h),
+          )
+        : Promise.resolve([]),
+      periodo === "mes"
+        ? traerTodo<{ fecha: string; tipo: "gasto" | "compra"; monto: number }>((d, h) =>
+            supabase
+              .from("gastos")
+              .select("fecha, tipo, monto")
+              .eq("negocio_id", negocio.id)
+              .gte("fecha", compDesde.desdeFecha)
+              .lt("fecha", compHasta.hastaFecha)
+              .order("id")
+              .range(d, h),
+          )
+        : Promise.resolve([]),
+    ]);
 
-  const todasLasVentas = (ventasRes.data ?? []) as unknown as {
+  const todasLasVentas = ventasData as unknown as {
     id: string;
     total: number;
     metodo_pago: string;
@@ -83,7 +153,7 @@ export default async function ReportesPage({
     vendedor: { nombre: string } | null;
   }[];
 
-  const todosLosItems = (itemsRes.data ?? []) as unknown as {
+  const todosLosItems = itemsData as unknown as {
     cantidad: number;
     total_linea: number;
     producto_id: string;
@@ -104,7 +174,7 @@ export default async function ReportesPage({
   const totalBonos = sumar(bonos);
   const totalExtra = sumar(extras);
 
-  const gastos = (gastosRes.data ?? []) as unknown as {
+  const gastos = gastosData as unknown as {
     tipo: "gasto" | "compra";
     categoria: string;
     monto: number;
@@ -184,16 +254,45 @@ export default async function ReportesPage({
   const conCosto = productos.filter((p) => p.costo != null);
   const valorCosto = conCosto.reduce((s, p) => s + p.stock * (p.costo ?? 0), 0);
 
+  // ---------- Comparación mes a mes ----------
+  const comparacion: FilaMes[] = mesesComparados.map((m) => {
+    const vs = compVentas.filter((v) => mesDeTs(v.fecha) === m);
+    const normales = vs.filter((v) => (v.tipo ?? "normal") === "normal");
+    const gs = compGastos.filter((g) => g.fecha.slice(0, 7) === m);
+    const suma = (l: { total: number }[]) => l.reduce((acc, v) => acc + Number(v.total), 0);
+    const montoDe = (tipo: "gasto" | "compra") =>
+      gs.filter((g) => g.tipo === tipo).reduce((acc, g) => acc + Number(g.monto), 0);
+    const ventasMes = suma(normales);
+    const aparte = suma(vs.filter((v) => v.tipo && v.tipo !== "normal"));
+    const gastosMes = montoDe("gasto");
+    const comprasMes = montoDe("compra");
+    return {
+      mes: m,
+      ventas: ventasMes,
+      numVentas: normales.length,
+      ticket: normales.length ? ventasMes / normales.length : 0,
+      aparte,
+      gastos: gastosMes,
+      compras: comprasMes,
+      resultado: ventasMes + aparte - gastosMes - comprasMes,
+    };
+  });
+  const filaAnterior = (i: number) => comparacion[i + 1];
+
   const etiquetaPeriodo =
-    periodo === "hoy" ? "Hoy" : periodo === "semana" ? "Últimos 7 días" : "Este mes";
+    periodo === "hoy" ? "Hoy" : periodo === "semana" ? "Últimos 7 días" : nombreMes(mes);
+  const ultimoDia = new Date(`${hastaFecha}T12:00:00Z`);
+  ultimoDia.setUTCDate(ultimoDia.getUTCDate() - 1);
+  const hastaVisible = ultimoDia.toISOString().slice(0, 10);
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold">Reportes</h1>
-          <p className="text-sm text-muted-foreground">
-            {etiquetaPeriodo} · desde {fechaCortaGT(desdeFecha)}
+          <p className="text-sm text-muted-foreground first-letter:uppercase">
+            {etiquetaPeriodo} · {fechaCortaGT(desdeFecha)} al{" "}
+            {fechaCortaGT(hastaVisible < hoyGT() ? hastaVisible : hoyGT())}
           </p>
         </div>
         <AccionesReporte
@@ -210,10 +309,13 @@ export default async function ReportesPage({
             ventasBonos: bonos.length,
             ventasExtra: extras.length,
           }}
+          archivo={periodo === "mes" ? mes : hoyGT()}
           porCategoria={porCategoria}
           porVendedor={porVendedor}
           porMetodo={porMetodo}
           topProductos={topProductos}
+          porGasto={porGasto}
+          comparacion={comparacion.map((c) => ({ ...c, nombre: nombreMes(c.mes) }))}
         />
       </div>
 
@@ -222,7 +324,7 @@ export default async function ReportesPage({
         {(["hoy", "semana", "mes"] as Periodo[]).map((per) => (
           <Link
             key={per}
-            href={`/reportes?periodo=${per}`}
+            href={`/reportes?${new URLSearchParams(per === "mes" ? { periodo: per, mes } : { periodo: per }).toString()}`}
             className={cn(
               "rounded-full border px-4 py-1.5 text-sm capitalize transition-colors",
               periodo === per
@@ -234,6 +336,12 @@ export default async function ReportesPage({
           </Link>
         ))}
       </div>
+
+      {periodo === "mes" && (
+        <div className="print:hidden">
+          <SelectorMes ruta="/reportes" mes={mes} meses={meses} params={{ periodo: "mes" }} />
+        </div>
+      )}
 
       {/* ---------- Resultado ---------- */}
       <Card className={cn("border-2", resultado >= 0 ? "border-primary/40" : "border-destructive/40")}>
@@ -296,6 +404,81 @@ export default async function ReportesPage({
           color="text-amber-700"
         />
       </div>
+
+      {/* ---------- Comparación mes a mes ---------- */}
+      {periodo === "mes" && comparacion.length > 1 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-primary">Comparación por mes</h2>
+          <Card>
+            <CardContent className="overflow-x-auto p-0">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs text-muted-foreground">
+                    <th className="px-3 py-2 font-medium">Mes</th>
+                    <th className="px-3 py-2 text-right font-medium">Ventas</th>
+                    <th className="px-3 py-2 text-right font-medium">vs anterior</th>
+                    <th className="px-3 py-2 text-right font-medium">Nº</th>
+                    <th className="px-3 py-2 text-right font-medium">Ticket</th>
+                    <th className="px-3 py-2 text-right font-medium">Gastos + compras</th>
+                    <th className="px-3 py-2 text-right font-medium">Resultado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {comparacion.map((c, i) => {
+                    const ant = filaAnterior(i);
+                    const cambio = ant ? variacion(c.ventas, ant.ventas) : null;
+                    const elegido = c.mes === mes;
+                    return (
+                      <tr key={c.mes} className={cn(elegido && "bg-accent/50 font-semibold")}>
+                        <td className="px-3 py-2">
+                          <Link
+                            href={`/reportes?${new URLSearchParams({ periodo: "mes", mes: c.mes }).toString()}`}
+                            className="hover:text-primary hover:underline"
+                          >
+                            {nombreMesCorto(c.mes)}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-2 text-right">{formatQ(c.ventas)}</td>
+                        <td
+                          className={cn(
+                            "px-3 py-2 text-right text-xs font-semibold",
+                            cambio === null
+                              ? "text-muted-foreground"
+                              : cambio >= 0
+                                ? "text-emerald-700"
+                                : "text-destructive",
+                          )}
+                        >
+                          {cambio === null
+                            ? "—"
+                            : `${cambio >= 0 ? "▲" : "▼"} ${Math.abs(cambio).toFixed(1)} %`}
+                        </td>
+                        <td className="px-3 py-2 text-right">{c.numVentas}</td>
+                        <td className="px-3 py-2 text-right">{formatQ(c.ticket)}</td>
+                        <td className="px-3 py-2 text-right text-destructive">
+                          {formatQ(c.gastos + c.compras)}
+                        </td>
+                        <td
+                          className={cn(
+                            "px-3 py-2 text-right",
+                            c.resultado < 0 && "text-destructive",
+                          )}
+                        >
+                          {formatQ(c.resultado)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+          <p className="text-xs text-muted-foreground">
+            Ventas = ventas normales. El resultado incluye bonos e ingresos extra. Toca un mes
+            para ver su detalle.
+          </p>
+        </section>
+      )}
 
       {/* ---------- Desgloses ---------- */}
       <Desglose titulo="Ventas por categoría" filas={porCategoria} sufijoUnidades="u" />
@@ -363,6 +546,17 @@ export default async function ReportesPage({
     </div>
   );
 }
+
+type FilaMes = {
+  mes: string;
+  ventas: number;
+  numVentas: number;
+  ticket: number;
+  aparte: number;
+  gastos: number;
+  compras: number;
+  resultado: number;
+};
 
 function Kpi({
   icon,

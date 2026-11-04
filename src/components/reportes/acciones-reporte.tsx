@@ -5,18 +5,33 @@ import { Button } from "@/components/ui/button";
 import { Download, Printer } from "lucide-react";
 
 type Fila = { nombre: string; total: number; unidades: number };
+type FilaMes = {
+  nombre: string;
+  ventas: number;
+  numVentas: number;
+  ticket: number;
+  aparte: number;
+  gastos: number;
+  compras: number;
+  resultado: number;
+};
 
 export function AccionesReporte({
   negocio,
   periodo,
+  archivo: sufijoArchivo,
   resumen,
   porCategoria,
   porVendedor,
   porMetodo,
   topProductos,
+  porGasto,
+  comparacion,
 }: {
   negocio: string;
   periodo: string;
+  /** Va en el nombre del archivo: el mes (2026-10) o la fecha de hoy. */
+  archivo: string;
   resumen: {
     ingresos: number;
     totalBonos: number;
@@ -32,6 +47,9 @@ export function AccionesReporte({
   porVendedor: Fila[];
   porMetodo: Fila[];
   topProductos: Fila[];
+  porGasto: Fila[];
+  /** Del mes elegido hacia atrás; vacío si no es reporte mensual. */
+  comparacion: FilaMes[];
 }) {
   function exportarCSV() {
     const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
@@ -65,6 +83,32 @@ export function AccionesReporte({
     bloque("Ventas por vendedor", porVendedor, "Ventas");
     bloque("Ventas por metodo de pago", porMetodo, "Ventas");
     bloque("Productos mas vendidos", topProductos, "Unidades");
+    bloque("Gastos y compras por categoria", porGasto, "Registros");
+
+    if (comparacion.length > 1) {
+      lineas.push("");
+      lineas.push("COMPARACION POR MES");
+      lineas.push(
+        "Mes,Ventas normales,Variacion vs mes anterior (%),Numero de ventas,Ticket promedio,Bonos y extra,Gastos,Compras,Resultado",
+      );
+      comparacion.forEach((c, i) => {
+        const ant = comparacion[i + 1];
+        const cambio = ant && ant.ventas ? ((c.ventas - ant.ventas) / ant.ventas) * 100 : null;
+        lineas.push(
+          [
+            esc(c.nombre),
+            q(c.ventas),
+            cambio === null ? "" : cambio.toFixed(1),
+            c.numVentas,
+            q(c.ticket),
+            q(c.aparte),
+            q(c.gastos),
+            q(c.compras),
+            q(c.resultado),
+          ].join(","),
+        );
+      });
+    }
 
     const csv = "﻿" + lineas.join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -77,7 +121,7 @@ export function AccionesReporte({
       .replace(/[̀-ͯ]/g, "")
       .replace(/[^a-zA-Z0-9]+/g, "_")
       .toLowerCase();
-    a.download = `reporte_${archivo}_${hoyGT()}.csv`;
+    a.download = `reporte_${archivo}_${sufijoArchivo}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
