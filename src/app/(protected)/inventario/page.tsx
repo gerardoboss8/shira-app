@@ -2,6 +2,7 @@ import { requireProfile, esAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { requireNegocio } from "@/lib/negocio";
 import { Inventario, type ProductoInv } from "@/components/inventario/inventario";
+import { COMPONENTES_SELECT, conStockReal, type ComponenteRow } from "@/lib/combos";
 import type { Categoria } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
@@ -14,14 +15,19 @@ export default async function InventarioPage() {
     supabase
       .from("productos")
       .select(
-        "id, nombre, sku, precio_venta, stock, stock_minimo, activo, grupo, categoria_id, categoria:categorias(nombre, prefijo, orden)",
+        `id, nombre, sku, precio_venta, costo, stock, stock_minimo, activo, grupo, precio_libre, categoria_id, categoria:categorias(nombre, prefijo, orden), ${COMPONENTES_SELECT}`,
       )
       .eq("negocio_id", negocio.id)
-      .order("nombre"),
+      .order("sku"),
     supabase.from("categorias").select("*").eq("negocio_id", negocio.id).order("orden"),
   ]);
 
-  const productos = (productosData ?? []) as unknown as ProductoInv[];
+  // Los combos muestran cuántos alcanzan con el stock de sus piezas
+  const productos = (
+    (productosData ?? []) as unknown as (Omit<ProductoInv, "es_combo" | "piezas"> & {
+      componentes: ComponenteRow[] | null;
+    })[]
+  ).map(conStockReal) as ProductoInv[];
   const categorias = (categoriasData ?? []) as unknown as Categoria[];
 
   return (

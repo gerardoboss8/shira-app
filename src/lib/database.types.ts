@@ -64,6 +64,8 @@ export interface Producto {
   activo: boolean;
   /** Subcategoría opcional: agrupa variantes (ej. "Camisas"). */
   grupo: string | null;
+  /** Se cobra con monto y descripción escritos al vender (ej. pedido personalizado). */
+  precio_libre: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -83,6 +85,27 @@ export interface Venta {
   estado: EstadoVenta;
   nota: string | null;
   tipo: TipoVenta;
+  cliente_telefono: string | null;
+  cliente_direccion: string | null;
+  cliente_referencia: string | null;
+  envio_empresa: string | null;
+  /** Aparte del total: no cuenta como venta. */
+  envio_costo: number;
+}
+
+/** Datos opcionales del cliente y envío (para el comprobante). */
+export type DatosCliente = {
+  telefono?: string | null;
+  direccion?: string | null;
+  referencia?: string | null;
+  envio_empresa?: string | null;
+  envio_costo?: number | null;
+};
+
+export interface ProductoComponente {
+  producto_id: string;
+  componente_id: string;
+  cantidad: number;
 }
 
 export interface VentaItem {
@@ -92,6 +115,7 @@ export interface VentaItem {
   cantidad: number;
   precio_unitario: number;
   total_linea: number;
+  descripcion: string | null;
 }
 
 export interface MovimientoInventario {
@@ -158,13 +182,14 @@ export interface Database {
       categorias: TableDef<Categoria, "id" | "orden" | "negocio_id">;
       productos: TableDef<
         Producto,
-        "id" | "negocio_id" | "costo" | "stock" | "stock_minimo" | "activo" | "grupo" | "created_at" | "updated_at"
+        "id" | "negocio_id" | "costo" | "stock" | "stock_minimo" | "activo" | "grupo" | "precio_libre" | "created_at" | "updated_at"
       >;
       ventas: TableDef<
         Venta,
-        "id" | "negocio_id" | "folio" | "fecha" | "cliente_nombre" | "descuento" | "estado" | "nota" | "tipo"
+        "id" | "negocio_id" | "folio" | "fecha" | "cliente_nombre" | "descuento" | "estado" | "nota" | "tipo" | "cliente_telefono" | "cliente_direccion" | "cliente_referencia" | "envio_empresa" | "envio_costo"
       >;
-      venta_items: TableDef<VentaItem, "id">;
+      venta_items: TableDef<VentaItem, "id" | "descripcion">;
+      producto_componentes: TableDef<ProductoComponente, "cantidad">;
       movimientos_inventario: TableDef<
         MovimientoInventario,
         "id" | "referencia_venta" | "nota" | "usuario_id" | "created_at"
@@ -183,7 +208,8 @@ export interface Database {
     Functions: {
       registrar_venta: {
         Args: {
-          p_items: { producto_id: string; cantidad: number }[];
+          /** precio y descripcion solo para productos de precio libre. */
+          p_items: { producto_id: string; cantidad: number; precio?: number; descripcion?: string }[];
           p_metodo_pago?: MetodoPago;
           p_cliente_nombre?: string | null;
           p_descuento?: number;
@@ -193,11 +219,16 @@ export interface Database {
           p_fecha?: string | null;
           p_tipo?: TipoVenta;
           p_negocio_id?: NegocioId;
+          p_datos_cliente?: DatosCliente | null;
         };
         Returns: { venta_id: string; folio: number; total: number; fecha: string; tipo: TipoVenta; negocio_id: NegocioId };
       };
       cambiar_tipo_venta: {
         Args: { p_venta_id: string; p_tipo: TipoVenta };
+        Returns: undefined;
+      };
+      actualizar_datos_cliente: {
+        Args: { p_venta_id: string; p_cliente_nombre: string | null; p_datos_cliente: DatosCliente };
         Returns: undefined;
       };
       anular_venta: {

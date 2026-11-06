@@ -39,6 +39,10 @@ import {
   Layers,
   ChevronRight,
   CalendarDays,
+  FileText,
+  Truck,
+  ChevronDown,
+  Package,
 } from "lucide-react";
 
 type ProductoPOS = {
@@ -46,17 +50,34 @@ type ProductoPOS = {
   nombre: string;
   sku: string;
   precio_venta: number;
+  /** En combos: cuántos alcanzan con el stock de sus piezas. */
   stock: number;
   categoria_id: string;
   grupo: string | null;
+  /** Monto y descripción se escriben al vender (ej. pedido personalizado). */
+  precio_libre: boolean;
+  es_combo: boolean;
+  piezas: string | null;
 };
 
-type LineaCarrito = { producto: ProductoPOS; cantidad: number };
+/**
+ * Línea del carrito. `clave` es el id del producto, salvo en precio libre:
+ * cada pedido personalizado es una línea aparte con su monto y descripción.
+ */
+type LineaCarrito = {
+  clave: string;
+  producto: ProductoPOS;
+  cantidad: number;
+  precio: number;
+  descripcion?: string;
+};
+
+const porSku = (a: { sku: string }, b: { sku: string }) => a.sku.localeCompare(b.sku, "es");
 
 /** Celda del catálogo: un producto suelto o una subcategoría con variantes. */
 type Celda =
   | { tipo: "producto"; clave: string; nombre: string; producto: ProductoPOS }
-  | { tipo: "grupo"; clave: string; nombre: string; items: ProductoPOS[] };
+  | { tipo: "grupo"; clave: string; nombre: string; sku: string; items: ProductoPOS[] };
 
 const METODOS: { value: MetodoPago; label: string }[] = [
   { value: "efectivo", label: "Efectivo" },
@@ -89,11 +110,23 @@ export function POS({
   const [tipo, setTipo] = useState<TipoVenta>("normal");
   const [procesando, setProcesando] = useState(false);
   const [resultado, setResultado] = useState<{
+    ventaId: string;
     folio: number;
     total: number;
     fecha: string;
     tipo: TipoVenta;
   } | null>(null);
+  // Datos opcionales para el comprobante
+  const [verDatos, setVerDatos] = useState(false);
+  const [telefono, setTelefono] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [referencia, setReferencia] = useState("");
+  const [envioEmpresa, setEnvioEmpresa] = useState("");
+  const [envioCosto, setEnvioCosto] = useState("");
+  // Precio libre: producto que se está agregando
+  const [libre, setLibre] = useState<ProductoPOS | null>(null);
+  const [libreMonto, setLibreMonto] = useState("");
+  const [libreDesc, setLibreDesc] = useState("");
   const [grupoAbierto, setGrupoAbierto] = useState<{
     nombre: string;
     items: ProductoPOS[];
@@ -131,39 +164,81 @@ export function POS({
         tipo: "grupo" as const,
         clave: `grupo:${nombre}`,
         nombre,
-        items: [...items].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
+        sku: items[0].sku,
+        items: [...items].sort(porSku),
       })),
-    ].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+    ].sort((a, b) =>
+      (a.tipo === "producto" ? a.producto.sku : a.sku).localeCompare(
+        b.tipo === "producto" ? b.producto.sku : b.sku,
+        "es",
+      ),
+    );
   }, [productosFiltrados, busqueda]);
 
   const lineas = [...carrito.values()];
-  const subtotal = lineas.reduce(
-    (s, l) => s + l.producto.precio_venta * l.cantidad,
-    0,
-  );
+  const subtotal = lineas.reduce((s, l) => s + l.precio * l.cantidad, 0);
   const descNum = Math.max(0, Number(descuento) || 0);
   const total = Math.max(subtotal - descNum, 0);
+  const envioNum = Math.max(0, Number(envioCosto) || 0);
+  const aCobrar = total + envioNum;
   const totalUnidades = lineas.reduce((s, l) => s + l.cantidad, 0);
   const hoy = hoyGT();
   const esFechaPasada = fecha < hoy;
 
   function agregar(p: ProductoPOS) {
+    if (p.precio_libre) {
+      setGrupoAbierto(null);
+      setLibreMonto("");
+      setLibreDesc("");
+      setLibre(p);
+      return;
+    }
     setCarrito((prev) => {
       const next = new Map(prev);
       const actual = next.get(p.id);
       const cantidad = (actual?.cantidad ?? 0) + 1;
       if (cantidad > p.stock) {
-        toast.warning(`Solo hay ${p.stock} de "${p.nombre}" en stock.`);
+        toast.warning(
+          p.es_combo
+            ? `Solo alcanzan las piezas para ${p.stock} de "${p.nombre}".`
+            : `Solo hay ${p.stock} de "${p.nombre}" en stock.`,
+        );
         return prev;
       }
-      next.set(p.id, { producto: p, cantidad });
+      next.set(p.id, { clave: p.id, producto: p, cantidad, precio: p.precio_venta });
       return next;
     });
   }
 
+  function agregarLibre() {
+    if (!libre) return;
+    const monto = Math.round(Number(libreMonto) * 100) / 100;
+    if (!Number.isFinite(monto) || monto <= 0) {
+      toast.warning("Escribe el monto del pedido.");
+      return;
+    }
+    if (!libreDesc.trim()) {
+      toast.warning("Describe qué incluye el pedido.");
+      return;
+    }
+    const clave = `${libre.id}:${Date.now()}`;
+    setCarrito((prev) =>
+      new Map(prev).set(clave, {
+        clave,
+        producto: libre,
+        cantidad: 1,
+        precio: monto,
+        descripcion: libreDesc.trim(),
+      }),
+    );
+    setLibre(null);
+  }
+
   function tileProducto(p: ProductoPOS) {
-    const enCarrito = carrito.get(p.id)?.cantidad ?? 0;
-    const agotado = p.stock <= 0;
+    const enCarrito = p.precio_libre
+      ? lineas.filter((l) => l.producto.id === p.id).length
+      : (carrito.get(p.id)?.cantidad ?? 0);
+    const agotado = !p.precio_libre && p.stock <= 0;
     return (
       <button
         key={p.id}
@@ -179,17 +254,26 @@ export function POS({
         <span className="line-clamp-2 text-sm font-medium leading-snug">
           {p.nombre}
         </span>
-        <span className="mt-1 text-xs text-muted-foreground">{p.sku}</span>
+        <span className="mt-1 text-xs text-muted-foreground">
+          {p.sku}
+          {p.es_combo && " · combo"}
+        </span>
         <span className="mt-2 font-semibold text-primary">
-          {formatQ(p.precio_venta)}
+          {p.precio_libre ? "Monto libre" : formatQ(p.precio_venta)}
         </span>
         <span
           className={cn(
             "mt-0.5 text-xs",
-            p.stock <= 2 ? "text-destructive" : "text-muted-foreground",
+            !p.precio_libre && p.stock <= 2 ? "text-destructive" : "text-muted-foreground",
           )}
         >
-          {agotado ? "Sin stock" : `Stock: ${p.stock}`}
+          {p.precio_libre
+            ? "Escribe monto y detalle"
+            : agotado
+              ? p.es_combo
+                ? "Faltan piezas"
+                : "Sin stock"
+              : `${p.es_combo ? "Alcanza para" : "Stock"}: ${p.stock}`}
         </span>
         {enCarrito > 0 && (
           <span className="absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
@@ -208,6 +292,8 @@ export function POS({
       const cantidad = linea.cantidad + delta;
       if (cantidad <= 0) {
         next.delete(id);
+      } else if (linea.producto.precio_libre) {
+        return prev;
       } else if (cantidad > linea.producto.stock) {
         toast.warning(`Solo hay ${linea.producto.stock} en stock.`);
         return prev;
@@ -229,6 +315,12 @@ export function POS({
   function nuevaVenta() {
     setCarrito(new Map());
     setCliente("");
+    setTelefono("");
+    setDireccion("");
+    setReferencia("");
+    setEnvioEmpresa("");
+    setEnvioCosto("");
+    setVerDatos(false);
     setDescuento("");
     setMetodo("efectivo");
     setFecha(hoyGT());
@@ -252,10 +344,16 @@ export function POS({
 
     const supabase = createClient();
     const { data, error } = await supabase.rpc("registrar_venta", {
-      p_items: lineas.map((l) => ({
-        producto_id: l.producto.id,
-        cantidad: l.cantidad,
-      })),
+      p_items: lineas.map((l) =>
+        l.producto.precio_libre
+          ? {
+              producto_id: l.producto.id,
+              cantidad: l.cantidad,
+              precio: l.precio,
+              descripcion: l.descripcion,
+            }
+          : { producto_id: l.producto.id, cantidad: l.cantidad },
+      ),
       p_metodo_pago: metodo,
       p_cliente_nombre: cliente.trim() || null,
       p_descuento: esAdmin ? descNum : 0,
@@ -263,6 +361,13 @@ export function POS({
       p_fecha: fecha,
       p_tipo: tipo,
       p_negocio_id: negocioId,
+      p_datos_cliente: {
+        telefono: telefono.trim() || null,
+        direccion: direccion.trim() || null,
+        referencia: referencia.trim() || null,
+        envio_empresa: envioEmpresa.trim() || null,
+        envio_costo: envioNum,
+      },
     });
 
     setProcesando(false);
@@ -272,8 +377,8 @@ export function POS({
       return;
     }
 
-    const res = data as { folio: number; total: number };
-    setResultado({ folio: res.folio, total: res.total, fecha, tipo });
+    const res = data as { venta_id: string; folio: number; total: number };
+    setResultado({ ventaId: res.venta_id, folio: res.folio, total: res.total + envioNum, fecha, tipo });
   }
 
   // ---------- Pantalla de éxito ----------
@@ -304,6 +409,15 @@ export function POS({
           <Button
             size="lg"
             variant="outline"
+            className="h-12"
+            render={<Link href={`/comprobante/${resultado.ventaId}`} />}
+            nativeButton={false}
+          >
+            <FileText className="h-5 w-5" /> Comprobante de pago
+          </Button>
+          <Button
+            size="lg"
+            variant="ghost"
             className="h-12"
             render={<Link href="/ventas" />}
             nativeButton={false}
@@ -352,7 +466,7 @@ export function POS({
           {celdas.map((c) => {
             if (c.tipo === "producto") return tileProducto(c.producto);
 
-            const stock = c.items.reduce((s, p) => s + p.stock, 0);
+            const stock = c.items.reduce((s, p) => s + (p.precio_libre ? 1 : p.stock), 0);
             const enCarrito = c.items.reduce(
               (s, p) => s + (carrito.get(p.id)?.cantidad ?? 0),
               0,
@@ -408,6 +522,52 @@ export function POS({
           )}
         </div>
 
+        {/* Precio libre: monto y descripción del pedido */}
+        <Dialog open={!!libre} onOpenChange={(o) => !o && setLibre(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-primary" /> {libre?.nombre}
+              </DialogTitle>
+              <DialogDescription>
+                Escribe qué lleva el pedido y cuánto se cobra en total.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="libre-desc">¿Qué incluye?</Label>
+                <Input
+                  id="libre-desc"
+                  placeholder="Ej. 2 estolas bordadas + 1 alba"
+                  value={libreDesc}
+                  onChange={(e) => setLibreDesc(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="libre-monto">Monto total (Q)</Label>
+                <Input
+                  id="libre-monto"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  placeholder="0.00"
+                  value={libreMonto}
+                  onChange={(e) => setLibreMonto(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && agregarLibre()}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                No descuenta inventario. Si el pedido lleva productos del catálogo,
+                agrégalos aparte para que bajen del stock.
+              </p>
+              <Button className="h-11 w-full" onClick={agregarLibre}>
+                <Plus className="h-4 w-4" /> Agregar al carrito
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Variantes de una subcategoría (ej. Camisas) */}
         <Dialog
           open={!!grupoAbierto}
@@ -423,7 +583,7 @@ export function POS({
             <ul className="divide-y rounded-lg border">
               {grupoAbierto?.items.map((p) => {
                 const enCarrito = carrito.get(p.id)?.cantidad ?? 0;
-                const agotado = p.stock <= 0;
+                const agotado = !p.precio_libre && p.stock <= 0;
                 return (
                   <li key={p.id}>
                     <button
@@ -483,12 +643,12 @@ export function POS({
             </p>
           ) : (
             <ul className="divide-y">
-              {lineas.map(({ producto, cantidad }) => (
-                <li key={producto.id} className="flex items-center gap-2 px-3 py-2.5">
+              {lineas.map(({ clave, producto, cantidad, precio, descripcion }) => (
+                <li key={clave} className="flex items-center gap-2 px-3 py-2.5">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{producto.nombre}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatQ(producto.precio_venta)} c/u
+                    <p className="truncate text-xs text-muted-foreground">
+                      {descripcion ?? `${formatQ(precio)} c/u`}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
@@ -496,7 +656,7 @@ export function POS({
                       size="icon"
                       variant="outline"
                       className="h-8 w-8"
-                      onClick={() => cambiarCantidad(producto.id, -1)}
+                      onClick={() => cambiarCantidad(clave, -1)}
                     >
                       <Minus className="h-4 w-4" />
                     </Button>
@@ -507,16 +667,17 @@ export function POS({
                       size="icon"
                       variant="outline"
                       className="h-8 w-8"
-                      onClick={() => cambiarCantidad(producto.id, 1)}
+                      onClick={() => cambiarCantidad(clave, 1)}
+                      disabled={producto.precio_libre}
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
                   <div className="w-20 text-right text-sm font-semibold">
-                    {formatQ(producto.precio_venta * cantidad)}
+                    {formatQ(precio * cantidad)}
                   </div>
                   <button
-                    onClick={() => quitar(producto.id)}
+                    onClick={() => quitar(clave)}
                     className="text-muted-foreground hover:text-destructive"
                     aria-label="Quitar"
                   >
@@ -537,6 +698,84 @@ export function POS({
                 value={cliente}
                 onChange={(e) => setCliente(e.target.value)}
               />
+            </div>
+
+            {/* Datos para el comprobante de pago (opcionales) */}
+            <div className="rounded-lg border">
+              <button
+                type="button"
+                onClick={() => setVerDatos((v) => !v)}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium"
+                aria-expanded={verDatos}
+              >
+                <Truck className="h-4 w-4 text-primary" />
+                Datos para comprobante y envío
+                <span className="ml-auto text-xs font-normal text-muted-foreground">
+                  {telefono || direccion || envioEmpresa ? "con datos" : "opcional"}
+                </span>
+                <ChevronDown
+                  className={cn("h-4 w-4 transition-transform", verDatos && "rotate-180")}
+                />
+              </button>
+              {verDatos && (
+                <div className="space-y-3 border-t p-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="telefono">Teléfono</Label>
+                    <Input
+                      id="telefono"
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="5555-5555"
+                      value={telefono}
+                      onChange={(e) => setTelefono(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="direccion">Dirección</Label>
+                    <Input
+                      id="direccion"
+                      placeholder="Calle, zona, municipio, departamento"
+                      value={direccion}
+                      onChange={(e) => setDireccion(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="referencia">Referencia</Label>
+                    <Input
+                      id="referencia"
+                      placeholder="Frente a…"
+                      value={referencia}
+                      onChange={(e) => setReferencia(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-[1fr_110px] gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="envio-empresa">Envío por</Label>
+                      <Input
+                        id="envio-empresa"
+                        placeholder="Forza – departamentos"
+                        value={envioEmpresa}
+                        onChange={(e) => setEnvioEmpresa(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="envio-costo">Costo (Q)</Label>
+                      <Input
+                        id="envio-costo"
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        placeholder="0.00"
+                        value={envioCosto}
+                        onChange={(e) => setEnvioCosto(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    El envío se cobra aparte: no suma a las ventas del reporte.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -640,9 +879,15 @@ export function POS({
                   <span>− {formatQ(descNum)}</span>
                 </div>
               )}
+              {envioNum > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Envío{envioEmpresa.trim() ? ` (${envioEmpresa.trim()})` : ""}</span>
+                  <span>+ {formatQ(envioNum)}</span>
+                </div>
+              )}
               <div className="flex justify-between pt-1 text-lg font-bold">
                 <span>Total</span>
-                <span className="text-primary">{formatQ(total)}</span>
+                <span className="text-primary">{formatQ(aCobrar)}</span>
               </div>
             </div>
 
@@ -657,7 +902,7 @@ export function POS({
                   <Loader2 className="h-5 w-5 animate-spin" /> Procesando…
                 </>
               ) : (
-                <>Cobrar {formatQ(total)}</>
+                <>Cobrar {formatQ(aCobrar)}</>
               )}
             </Button>
 

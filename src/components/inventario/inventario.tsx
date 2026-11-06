@@ -50,7 +50,13 @@ export type ProductoInv = {
   nombre: string;
   sku: string;
   precio_venta: number;
+  costo: number | null;
+  /** En combos: cuántos alcanzan con el stock de sus piezas. */
   stock: number;
+  precio_libre: boolean;
+  es_combo: boolean;
+  /** "Leccionario I + Leccionario II + …" (solo combos). */
+  piezas: string | null;
   stock_minimo: number;
   activo: boolean;
   grupo: string | null;
@@ -58,10 +64,15 @@ export type ProductoInv = {
   categoria: { nombre: string; prefijo: string; orden: number } | null;
 };
 
+/** Combos y precio libre no tienen stock propio: no suman ni se mueven. */
+const conStockPropio = (p: ProductoInv) => !p.es_combo && !p.precio_libre;
+
+const porSku = (a: { sku: string }, b: { sku: string }) => a.sku.localeCompare(b.sku, "es");
+
 /** Una fila del listado: un producto suelto o una subcategoría con variantes. */
 type Fila =
   | { tipo: "producto"; clave: string; nombre: string; producto: ProductoInv }
-  | { tipo: "grupo"; clave: string; nombre: string; items: ProductoInv[] };
+  | { tipo: "grupo"; clave: string; nombre: string; sku: string; items: ProductoInv[] };
 
 export function Inventario({
   productos,
@@ -99,9 +110,10 @@ export function Inventario({
   }, [productos, activos, verInactivos, busqueda]);
 
   // Los totales siempre reflejan el inventario activo
-  const unidades = activos.reduce((s, p) => s + p.stock, 0);
-  const valor = activos.reduce((s, p) => s + p.stock * p.precio_venta, 0);
-  const bajoStock = activos.filter((p) => p.stock <= p.stock_minimo).length;
+  const conStock = activos.filter(conStockPropio);
+  const unidades = conStock.reduce((s, p) => s + p.stock, 0);
+  const valor = conStock.reduce((s, p) => s + p.stock * p.precio_venta, 0);
+  const bajoStock = conStock.filter((p) => p.stock <= p.stock_minimo).length;
 
   // Al buscar se muestra todo plano: la subcategoría estorbaría para encontrar.
   const buscando = busqueda.trim().length > 0;
@@ -154,9 +166,15 @@ export function Inventario({
             tipo: "grupo" as const,
             clave: `grupo:${cat.nombre}:${nombre}`,
             nombre,
-            items: [...items].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
+            sku: items[0].sku,
+            items: [...items].sort(porSku),
           })),
-        ].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+        ].sort((a, b) =>
+          (a.tipo === "producto" ? a.producto.sku : a.sku).localeCompare(
+            b.tipo === "producto" ? b.producto.sku : b.sku,
+            "es",
+          ),
+        );
 
         return { ...cat, filas };
       });
@@ -173,6 +191,7 @@ export function Inventario({
       nombre: p.nombre,
       sku: p.sku,
       precio_venta: p.precio_venta,
+      costo: p.costo,
       stock_minimo: p.stock_minimo,
       categoria_id: p.categoria_id,
       grupo: p.grupo,
@@ -208,7 +227,7 @@ export function Inventario({
 
   /** Fila de un producto. `anidada` = variante dentro de una subcategoría. */
   function filaProducto(p: ProductoInv, anidada = false) {
-    const bajo = p.activo && p.stock <= p.stock_minimo;
+    const bajo = p.activo && conStockPropio(p) && p.stock <= p.stock_minimo;
     return (
       <li
         key={p.id}
@@ -228,8 +247,12 @@ export function Inventario({
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            {p.sku} · {formatQ(p.precio_venta)}
+            {p.sku} · {p.precio_libre ? "monto libre" : formatQ(p.precio_venta)}
+            {p.costo != null && ` · costo ${formatQ(p.costo)}`}
           </p>
+          {p.piezas && (
+            <p className="truncate text-xs text-primary">Combo: {p.piezas}</p>
+          )}
         </div>
         <div className="text-right">
           <div className="flex items-center justify-end gap-1.5">
@@ -241,11 +264,15 @@ export function Inventario({
             <span
               className={cn("font-semibold tabular-nums", bajo && "text-destructive")}
             >
-              {p.stock}
+              {p.precio_libre ? "—" : p.stock}
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {formatQ(p.stock * p.precio_venta)}
+            {p.precio_libre
+              ? "a pedido"
+              : p.es_combo
+                ? "alcanza"
+                : formatQ(p.stock * p.precio_venta)}
           </p>
         </div>
 
@@ -266,9 +293,11 @@ export function Inventario({
             <DropdownMenuContent align="end" className="w-52">
               {p.activo ? (
                 <>
-                  <DropdownMenuItem onClick={() => setProductoMov(p)}>
-                    <ArrowUpDown className="h-4 w-4" /> Mover inventario
-                  </DropdownMenuItem>
+                  {conStockPropio(p) && (
+                    <DropdownMenuItem onClick={() => setProductoMov(p)}>
+                      <ArrowUpDown className="h-4 w-4" /> Mover inventario
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => abrirEditar(p)}>
                     <Pencil className="h-4 w-4" /> Editar producto
                   </DropdownMenuItem>
@@ -292,12 +321,13 @@ export function Inventario({
   function filaGrupo(fila: Extract<Fila, { tipo: "grupo" }>) {
     const abierto = abiertos.includes(fila.clave);
     const activosGrupo = fila.items.filter((p) => p.activo);
-    const stock = activosGrupo.reduce((s, p) => s + p.stock, 0);
-    const valor = activosGrupo.reduce((s, p) => s + p.stock * p.precio_venta, 0);
+    const conStockGrupo = activosGrupo.filter(conStockPropio);
+    const stock = conStockGrupo.reduce((s, p) => s + p.stock, 0);
+    const valor = conStockGrupo.reduce((s, p) => s + p.stock * p.precio_venta, 0);
     const precios = activosGrupo.map((p) => p.precio_venta);
     const min = precios.length ? Math.min(...precios) : 0;
     const max = precios.length ? Math.max(...precios) : 0;
-    const bajos = activosGrupo.filter((p) => p.stock <= p.stock_minimo).length;
+    const bajos = conStockGrupo.filter((p) => p.stock <= p.stock_minimo).length;
 
     return (
       <li key={fila.clave}>
@@ -347,15 +377,16 @@ export function Inventario({
 
   function exportarCSV() {
     const filas = [
-      ["SKU", "Producto", "Categoria", "Subcategoria", "Stock", "Precio_venta", "Valor"],
+      ["SKU", "Producto", "Categoria", "Subcategoria", "Stock", "Precio_venta", "Costo", "Valor"],
       ...activos.map((p) => [
         p.sku,
         `"${p.nombre.replace(/"/g, '""')}"`,
         p.categoria?.nombre ?? "",
         p.grupo ?? "",
-        String(p.stock),
+        conStockPropio(p) ? String(p.stock) : p.es_combo ? "combo" : "a pedido",
         p.precio_venta.toFixed(2),
-        (p.stock * p.precio_venta).toFixed(2),
+        p.costo != null ? Number(p.costo).toFixed(2) : "",
+        conStockPropio(p) ? (p.stock * p.precio_venta).toFixed(2) : "",
       ]),
     ];
     const csv = "﻿" + filas.map((f) => f.join(",")).join("\n");

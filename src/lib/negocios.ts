@@ -21,6 +21,15 @@ export type Negocio = {
   themeColor: string;
   /** Subcategorías sugeridas al crear productos. */
   gruposSugeridos: string[];
+  /** Colores y contacto del comprobante de pago. */
+  comprobante: {
+    fondo: string;
+    franja: string;
+    tabla: string;
+    acento: string;
+    whatsapp: string | null;
+    lema: string;
+  };
 };
 
 export const NEGOCIOS: Record<NegocioId, Negocio> = {
@@ -37,6 +46,14 @@ export const NEGOCIOS: Record<NegocioId, Negocio> = {
     manifest: "/manifest.json",
     themeColor: "#176BE0",
     gruposSugeridos: [],
+    comprobante: {
+      fondo: "#0a3478",
+      franja: "#4a90cf",
+      tabla: "#ffcc00",
+      acento: "#4a90cf",
+      whatsapp: "5582 2306",
+      lema: "Librería online",
+    },
   },
   artisan: {
     id: "artisan",
@@ -59,6 +76,14 @@ export const NEGOCIOS: Record<NegocioId, Negocio> = {
       "Individuales",
       "Bolsas",
     ],
+    comprobante: {
+      fondo: "#2e1a5c",
+      franja: "#ff5a5a",
+      tabla: "#ffde5a",
+      acento: "#ff5a5a",
+      whatsapp: null,
+      lema: "Manteles y accesorios de cocina",
+    },
   },
 };
 

@@ -26,6 +26,7 @@ type Fila = {
   cantidad: number;
   precio_unitario: number;
   total_linea: number;
+  descripcion: string | null;
   producto: {
     nombre: string;
     sku: string;
@@ -36,6 +37,8 @@ type Fila = {
     folio: number;
     fecha: string;
     cliente_nombre: string | null;
+    cliente_telefono: string | null;
+    envio_costo: number;
     metodo_pago: string;
     descuento: number;
     total: number;
@@ -81,7 +84,7 @@ export async function GET(request: NextRequest) {
     let q = supabase
       .from("venta_items")
       .select(
-        "cantidad, precio_unitario, total_linea, producto:productos(nombre, sku, grupo, categoria:categorias(nombre)), venta:ventas!inner(folio, fecha, cliente_nombre, metodo_pago, descuento, total, estado, tipo, nota, negocio_id, vendedor:profiles(nombre))",
+        "cantidad, precio_unitario, total_linea, descripcion, producto:productos(nombre, sku, grupo, categoria:categorias(nombre)), venta:ventas!inner(folio, fecha, cliente_nombre, cliente_telefono, envio_costo, metodo_pago, descuento, total, estado, tipo, nota, negocio_id, vendedor:profiles(nombre))",
       )
       .eq("venta.negocio_id", negocio.id)
       .gte("venta.fecha", desdeTs)
@@ -114,6 +117,7 @@ export async function GET(request: NextRequest) {
       "Tipo",
       "Vendedor",
       "Cliente",
+      "Telefono",
       "Metodo de pago",
       "SKU",
       "Producto",
@@ -145,9 +149,10 @@ export async function GET(request: NextRequest) {
         esc(tipoVentaLabel[v.tipo ?? "normal"]),
         esc(v.vendedor?.nombre),
         esc(v.cliente_nombre),
+        esc(v.cliente_telefono),
         esc(metodoLabel[v.metodo_pago] ?? v.metodo_pago),
         esc(f.producto?.sku),
-        esc(f.producto?.nombre),
+        esc(f.descripcion ? `${f.producto?.nombre ?? ""}: ${f.descripcion}` : f.producto?.nombre),
         esc(f.producto?.categoria?.nombre),
         esc(f.producto?.grupo),
         f.cantidad,

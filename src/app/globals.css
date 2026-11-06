@@ -202,3 +202,15 @@
     break-inside: avoid;
   }
 }
+/* Comprobante de pago: hoja carta sin márgenes y con sus colores al imprimir/guardar PDF */
+@media print {
+  @page {
+    size: letter;
+    margin: 0;
+  }
+  .comprobante,
+  .comprobante * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

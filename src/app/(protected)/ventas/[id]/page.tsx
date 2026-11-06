@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireProfile, esAdmin } from "@/lib/auth";
+import { requireProfile, esAdmin, puedeVender } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { requireNegocio } from "@/lib/negocio";
 import { formatQ, fechaHoraGT, folioVenta } from "@/lib/format";
@@ -10,9 +10,10 @@ import { Button } from "@/components/ui/button";
 import { AnularVenta } from "@/components/ventas/anular-venta";
 import { CambiarTipoVenta } from "@/components/ventas/cambiar-tipo-venta";
 import { TipoVentaBadge } from "@/components/ventas/tipo-venta-badge";
+import { EditarDatosCliente } from "@/components/ventas/datos-cliente";
 import { tipoVentaLabel } from "@/lib/tipos-venta";
 import type { TipoVenta } from "@/lib/database.types";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export default async function VentaDetallePage({
   const { data: venta } = await supabase
     .from("ventas")
     .select(
-      "id, folio, fecha, cliente_nombre, metodo_pago, subtotal, descuento, total, estado, nota, tipo, vendedor:profiles(nombre)",
+      "id, folio, fecha, cliente_nombre, cliente_telefono, cliente_direccion, cliente_referencia, envio_empresa, envio_costo, metodo_pago, subtotal, descuento, total, estado, nota, tipo, vendedor:profiles(nombre)",
     )
     .eq("id", id)
     .eq("negocio_id", negocio.id)
@@ -45,8 +46,9 @@ export default async function VentaDetallePage({
 
   const { data: items } = await supabase
     .from("venta_items")
-    .select("cantidad, precio_unitario, total_linea, producto:productos(nombre, sku)")
-    .eq("venta_id", id);
+    .select("cantidad, precio_unitario, total_linea, descripcion, producto:productos(nombre, sku)")
+    .eq("venta_id", id)
+    .order("id");
 
   const vendedor = (venta.vendedor as unknown as { nombre: string } | null)?.nombre;
   const tipo = (venta.tipo ?? "normal") as TipoVenta;
@@ -55,8 +57,10 @@ export default async function VentaDetallePage({
     cantidad: number;
     precio_unitario: number;
     total_linea: number;
+    descripcion: string | null;
     producto: { nombre: string; sku: string } | null;
   }[];
+  const envio = Number(venta.envio_costo ?? 0);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -86,12 +90,48 @@ export default async function VentaDetallePage({
         )}
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <Button
+          render={<Link href={`/comprobante/${venta.id}`} />}
+          nativeButton={false}
+          size="sm"
+        >
+          <FileText className="h-4 w-4" /> Comprobante de pago
+        </Button>
+        {puedeVender(profile) && (
+          <EditarDatosCliente
+            ventaId={venta.id}
+            folio={folioVenta(venta.folio)}
+            datos={{
+              cliente_nombre: venta.cliente_nombre,
+              cliente_telefono: venta.cliente_telefono,
+              cliente_direccion: venta.cliente_direccion,
+              cliente_referencia: venta.cliente_referencia,
+              envio_empresa: venta.envio_empresa,
+              envio_costo: envio,
+            }}
+          />
+        )}
+      </div>
+
       <Card>
         <CardContent className="grid grid-cols-2 gap-y-2 py-4 text-sm">
           <Dato label="Método de pago" valor={metodoLabel[venta.metodo_pago]} />
           <Dato label="Vendedor" valor={vendedor ?? "—"} />
           <Dato label="Cliente" valor={venta.cliente_nombre || "—"} />
           {!puedeCambiarTipo && <Dato label="Tipo de venta" valor={tipoVentaLabel[tipo]} />}
+          {venta.cliente_telefono && <Dato label="Teléfono" valor={venta.cliente_telefono} />}
+          {venta.envio_empresa && <Dato label="Envío" valor={venta.envio_empresa} />}
+          {venta.cliente_direccion && (
+            <div className="col-span-2">
+              <Dato
+                label="Dirección"
+                valor={[venta.cliente_direccion, venta.cliente_referencia]
+                  .filter(Boolean)
+                  .join(" · ")}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -122,6 +162,7 @@ export default async function VentaDetallePage({
                 <tr key={i}>
                   <td className="px-4 py-2.5">
                     <div className="font-medium">{l.producto?.nombre ?? "—"}</div>
+                    {l.descripcion && <div className="text-sm">{l.descripcion}</div>}
                     <div className="text-xs text-muted-foreground">
                       {l.producto?.sku}
                     </div>
@@ -153,6 +194,18 @@ export default async function VentaDetallePage({
               <span>Total</span>
               <span className="text-primary">{formatQ(venta.total)}</span>
             </div>
+            {envio > 0 && (
+              <>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>+ Envío (aparte de la venta)</span>
+                  <span>{formatQ(envio)}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                  <span>Total pagado por el cliente</span>
+                  <span>{formatQ(Number(venta.total) + envio)}</span>
+                </div>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
