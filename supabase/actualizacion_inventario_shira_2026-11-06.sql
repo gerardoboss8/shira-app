@@ -153,6 +153,8 @@ insert into mapa (sku_actual, nombre_actual, sku_nuevo, prefijo, nombre, grupo, 
   ('OTR-027', 'agenda de la mujer',                 'OTR-004', 'OTR', 'Agenda de la mujer',    null,   55.00, 22.39, true, 0, false),
   ('OTR-026', 'misal anual',                        'OTR-005', 'OTR', 'Misal anual 2027',      null,   45.00, 23.44, true, 0, false),
   ('OTR-028', 'PEDIDO PERSONALIZADO FUERA DE MENU', 'OTR-006', 'OTR', 'Pedido personalizado',  null,    0.00,  null, true, 0, true),
+  -- Nuevo (no son los separadores): inactivo en Q0 hasta ponerle precio
+  (null,      null,                                 'OTR-007', 'OTR', 'Señalamientos',         null,    0.00,  9.09, false, 0, false),
 
   -- ======================= DE BAJA =======================
   -- (inactivos, stock a 0; conservan su historial de ventas)

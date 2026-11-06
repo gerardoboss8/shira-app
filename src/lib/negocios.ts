@@ -81,7 +81,7 @@ export const NEGOCIOS: Record<NegocioId, Negocio> = {
       franja: "#ff5a5a",
       tabla: "#ffde5a",
       acento: "#ff5a5a",
-      whatsapp: null,
+      whatsapp: "5582 2306",
       lema: "Manteles y accesorios de cocina",
     },
   },
