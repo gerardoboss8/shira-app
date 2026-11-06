@@ -15,7 +15,7 @@ export default async function InventarioPage() {
     supabase
       .from("productos")
       .select(
-        `id, nombre, sku, precio_venta, costo, stock, stock_minimo, activo, grupo, precio_libre, categoria_id, categoria:categorias(nombre, prefijo, orden), ${COMPONENTES_SELECT}`,
+        `id, nombre, sku, precio_venta, costo, stock, stock_minimo, activo, grupo, precio_libre, controla_stock, categoria_id, categoria:categorias(nombre, prefijo, orden), ${COMPONENTES_SELECT}`,
       )
       .eq("negocio_id", negocio.id)
       .order("sku"),
@@ -36,6 +36,7 @@ export default async function InventarioPage() {
       categorias={categorias}
       esAdmin={esAdmin(profile)}
       gruposSugeridos={negocio.gruposSugeridos}
+      sobrePedido={negocio.sobrePedido}
     />
   );
 }

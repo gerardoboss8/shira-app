@@ -4,6 +4,11 @@
  * sus piezas. Uso con el select `COMPONENTES_SELECT` dentro de productos.
  */
 
+/** Ni combo, ni precio libre, ni sobre pedido: lleva existencias propias. */
+export function llevaStock(p: { es_combo: boolean; precio_libre: boolean; controla_stock: boolean }) {
+  return !p.es_combo && !p.precio_libre && p.controla_stock;
+}
+
 /** Fragmento de select de Supabase para traer las piezas de un combo. */
 export const COMPONENTES_SELECT =
   "componentes:producto_componentes!producto_componentes_producto_fk(cantidad, componente:productos!producto_componentes_componente_fk(id, nombre, stock, activo))";

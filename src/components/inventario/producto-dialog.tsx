@@ -34,11 +34,14 @@ export type ProductoEdit = {
   stock_minimo: number;
   categoria_id?: string;
   grupo?: string | null;
+  /** false = sobre pedido. */
+  controla_stock?: boolean;
 };
 
 export function ProductoDialog({
   categorias,
   gruposExistentes = [],
+  sobrePedido = false,
   producto,
   abierto,
   onClose,
@@ -46,6 +49,8 @@ export function ProductoDialog({
   categorias: Categoria[];
   /** Subcategorías ya usadas, para sugerirlas al escribir. */
   gruposExistentes?: string[];
+  /** Valor inicial de "sobre pedido" al crear (Artisan). */
+  sobrePedido?: boolean;
   producto: ProductoEdit | null; // null = crear
   abierto: boolean;
   onClose: () => void;
@@ -60,6 +65,7 @@ export function ProductoDialog({
   const [costo, setCosto] = useState("");
   const [stockInicial, setStockInicial] = useState("");
   const [stockMinimo, setStockMinimo] = useState("2");
+  const [lleva, setLleva] = useState(true);
   const [procesando, setProcesando] = useState(false);
 
   // Carga los valores al abrir
@@ -72,7 +78,8 @@ export function ProductoDialog({
     setCosto(producto?.costo != null ? String(producto.costo) : "");
     setStockInicial("");
     setStockMinimo(producto ? String(producto.stock_minimo) : "2");
-  }, [abierto, producto, categorias]);
+    setLleva(producto ? producto.controla_stock !== false : !sobrePedido);
+  }, [abierto, producto, categorias, sobrePedido]);
 
   async function guardar() {
     if (!nombre.trim()) {
@@ -105,6 +112,7 @@ export function ProductoDialog({
           costo: costoNum,
           stock_minimo: minimo,
           grupo: grupoTxt,
+          controla_stock: lleva,
         })
         .eq("id", producto!.id);
       setProcesando(false);
@@ -129,7 +137,10 @@ export function ProductoDialog({
         toast.error(error.message ?? "No se pudo crear el producto.");
         return;
       }
-      const res = data as { sku: string };
+      const res = data as { id: string; sku: string };
+      if (!lleva) {
+        await supabase.from("productos").update({ controla_stock: false }).eq("id", res.id);
+      }
       toast.success(`Producto creado con SKU ${res.sku}.`);
     }
 
@@ -231,7 +242,22 @@ export function ProductoDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <label className="flex items-start gap-2.5 rounded-lg border p-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
+              checked={!lleva}
+              onChange={(e) => setLleva(!e.target.checked)}
+            />
+            <span>
+              <span className="font-medium">Sobre pedido</span>
+              <span className="block text-xs text-muted-foreground">
+                Se confecciona después de venderlo: se vende sin existencias y no lleva inventario.
+              </span>
+            </span>
+          </label>
+
+          {lleva && <div className="grid grid-cols-2 gap-3">
             {!editando && (
               <div className="space-y-1.5">
                 <Label htmlFor="stockInicial">Stock inicial</Label>
@@ -258,7 +284,7 @@ export function ProductoDialog({
                 placeholder="2"
               />
             </div>
-          </div>
+          </div>}
         </div>
 
         <DialogFooter>

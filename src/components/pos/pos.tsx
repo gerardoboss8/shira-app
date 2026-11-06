@@ -34,6 +34,7 @@ import {
   Trash2,
   ShoppingCart,
   CheckCircle2,
+  Palette,
   Loader2,
   X,
   Layers,
@@ -56,9 +57,14 @@ type ProductoPOS = {
   grupo: string | null;
   /** Monto y descripción se escriben al vender (ej. pedido personalizado). */
   precio_libre: boolean;
+  /** false = sobre pedido: se vende sin existencias. */
+  controla_stock: boolean;
   es_combo: boolean;
   piezas: string | null;
 };
+
+/** Se puede vender sin mirar existencias (precio libre o sobre pedido). */
+const sinLimite = (p: ProductoPOS) => p.precio_libre || (!p.es_combo && !p.controla_stock);
 
 /**
  * Línea del carrito. `clave` es el id del producto, salvo en precio libre:
@@ -123,6 +129,14 @@ export function POS({
   const [referencia, setReferencia] = useState("");
   const [envioEmpresa, setEnvioEmpresa] = useState("");
   const [envioCosto, setEnvioCosto] = useState("");
+  // Opciones por línea (color, diseño…) del producto que se está agregando
+  const [conOpciones, setConOpciones] = useState<ProductoPOS | null>(null);
+  const [elegidas, setElegidas] = useState<Record<string, string>>({});
+  const [notaLinea, setNotaLinea] = useState("");
+  const opcionesPorCategoria = useMemo(
+    () => new Map(categorias.map((c) => [c.id, c.opciones ?? []])),
+    [categorias],
+  );
   // Precio libre: producto que se está agregando
   const [libre, setLibre] = useState<ProductoPOS | null>(null);
   const [libreMonto, setLibreMonto] = useState("");
@@ -193,11 +207,27 @@ export function POS({
       setLibre(p);
       return;
     }
+    if ((opcionesPorCategoria.get(p.categoria_id) ?? []).length > 0) {
+      setGrupoAbierto(null);
+      setElegidas({});
+      setNotaLinea("");
+      setConOpciones(p);
+      return;
+    }
+    sumarLinea(p, null);
+  }
+
+  /** Suma 1 a la línea del producto con ese detalle (o la crea). */
+  function sumarLinea(p: ProductoPOS, detalle: string | null) {
+    const clave = detalle ? `${p.id}|${detalle}` : p.id;
     setCarrito((prev) => {
       const next = new Map(prev);
-      const actual = next.get(p.id);
+      const actual = next.get(clave);
       const cantidad = (actual?.cantidad ?? 0) + 1;
-      if (cantidad > p.stock) {
+      const yaPedidas = [...prev.values()]
+        .filter((l) => l.producto.id === p.id && l.clave !== clave)
+        .reduce((s, l) => s + l.cantidad, 0);
+      if (!sinLimite(p) && cantidad + yaPedidas > p.stock) {
         toast.warning(
           p.es_combo
             ? `Solo alcanzan las piezas para ${p.stock} de "${p.nombre}".`
@@ -205,9 +235,29 @@ export function POS({
         );
         return prev;
       }
-      next.set(p.id, { clave: p.id, producto: p, cantidad, precio: p.precio_venta });
+      next.set(clave, {
+        clave,
+        producto: p,
+        cantidad,
+        precio: p.precio_venta,
+        descripcion: detalle ?? undefined,
+      });
       return next;
     });
+  }
+
+  function agregarConOpciones() {
+    if (!conOpciones) return;
+    const grupos = opcionesPorCategoria.get(conOpciones.categoria_id) ?? [];
+    const detalle = [
+      ...grupos.map((g) => elegidas[g.nombre]).filter(Boolean),
+      notaLinea.trim(),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    sumarLinea(conOpciones, detalle || null);
+    toast.success(`Agregado: ${conOpciones.nombre}${detalle ? ` – ${detalle}` : ""}`);
+    setConOpciones(null);
   }
 
   function agregarLibre() {
@@ -235,10 +285,10 @@ export function POS({
   }
 
   function tileProducto(p: ProductoPOS) {
-    const enCarrito = p.precio_libre
-      ? lineas.filter((l) => l.producto.id === p.id).length
-      : (carrito.get(p.id)?.cantidad ?? 0);
-    const agotado = !p.precio_libre && p.stock <= 0;
+    const enCarrito = lineas
+      .filter((l) => l.producto.id === p.id)
+      .reduce((s, l) => s + l.cantidad, 0);
+    const agotado = !sinLimite(p) && p.stock <= 0;
     return (
       <button
         key={p.id}
@@ -264,12 +314,14 @@ export function POS({
         <span
           className={cn(
             "mt-0.5 text-xs",
-            !p.precio_libre && p.stock <= 2 ? "text-destructive" : "text-muted-foreground",
+            !sinLimite(p) && p.stock <= 2 ? "text-destructive" : "text-muted-foreground",
           )}
         >
           {p.precio_libre
             ? "Escribe monto y detalle"
-            : agotado
+            : !p.controla_stock && !p.es_combo
+              ? "Sobre pedido"
+              : agotado
               ? p.es_combo
                 ? "Faltan piezas"
                 : "Sin stock"
@@ -294,7 +346,15 @@ export function POS({
         next.delete(id);
       } else if (linea.producto.precio_libre) {
         return prev;
-      } else if (cantidad > linea.producto.stock) {
+      } else if (
+        !sinLimite(linea.producto) &&
+        delta > 0 &&
+        [...prev.values()]
+          .filter((l) => l.producto.id === linea.producto.id)
+          .reduce((s, l) => s + l.cantidad, 0) +
+          delta >
+          linea.producto.stock
+      ) {
         toast.warning(`Solo hay ${linea.producto.stock} en stock.`);
         return prev;
       } else {
@@ -352,7 +412,7 @@ export function POS({
               precio: l.precio,
               descripcion: l.descripcion,
             }
-          : { producto_id: l.producto.id, cantidad: l.cantidad },
+          : { producto_id: l.producto.id, cantidad: l.cantidad, descripcion: l.descripcion ?? null },
       ),
       p_metodo_pago: metodo,
       p_cliente_nombre: cliente.trim() || null,
@@ -466,11 +526,11 @@ export function POS({
           {celdas.map((c) => {
             if (c.tipo === "producto") return tileProducto(c.producto);
 
-            const stock = c.items.reduce((s, p) => s + (p.precio_libre ? 1 : p.stock), 0);
-            const enCarrito = c.items.reduce(
-              (s, p) => s + (carrito.get(p.id)?.cantidad ?? 0),
-              0,
-            );
+            const stock = c.items.reduce((s, p) => s + (sinLimite(p) ? 1 : p.stock), 0);
+            const sobrePedido = c.items.every((p) => sinLimite(p));
+            const enCarrito = lineas
+              .filter((l) => c.items.some((p) => p.id === l.producto.id))
+              .reduce((s, l) => s + l.cantidad, 0);
             const precios = c.items.map((p) => p.precio_venta);
             const min = Math.min(...precios);
             const max = Math.max(...precios);
@@ -504,7 +564,7 @@ export function POS({
                     stock <= 2 ? "text-destructive" : "text-muted-foreground",
                   )}
                 >
-                  {agotado ? "Sin stock" : `Stock: ${stock}`}
+                  {sobrePedido ? "Sobre pedido" : agotado ? "Sin stock" : `Stock: ${stock}`}
                   <ChevronRight className="h-3 w-3" />
                 </span>
                 {enCarrito > 0 && (
@@ -521,6 +581,72 @@ export function POS({
             </p>
           )}
         </div>
+
+        {/* Opciones de la línea: color, diseño, cuadro… */}
+        <Dialog open={!!conOpciones} onOpenChange={(o) => !o && setConOpciones(null)}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Palette className="h-5 w-5 shrink-0 text-primary" />
+                <span className="text-left">{conOpciones?.nombre}</span>
+              </DialogTitle>
+              <DialogDescription>
+                {conOpciones && formatQ(conOpciones.precio_venta)} · elige las opciones (todas son
+                opcionales).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {(conOpciones ? (opcionesPorCategoria.get(conOpciones.categoria_id) ?? []) : []).map(
+                (g) => (
+                  <div key={g.nombre} className="space-y-2">
+                    <Label>
+                      {g.nombre}
+                      {elegidas[g.nombre] && (
+                        <span className="ml-2 font-normal text-primary">{elegidas[g.nombre]}</span>
+                      )}
+                    </Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {g.valores.map((v) => {
+                        const activo = elegidas[g.nombre] === v;
+                        return (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() =>
+                              setElegidas((prev) => ({ ...prev, [g.nombre]: activo ? "" : v }))
+                            }
+                            aria-pressed={activo}
+                            className={cn(
+                              "rounded-full border px-3 py-1.5 text-sm transition-colors",
+                              activo
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "bg-card hover:bg-accent",
+                            )}
+                          >
+                            {v}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ),
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="nota-linea">Nota (opcional)</Label>
+                <Input
+                  id="nota-linea"
+                  placeholder="Ej. medida 150 × 260, bordado con nombre…"
+                  value={notaLinea}
+                  onChange={(e) => setNotaLinea(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && agregarConOpciones()}
+                />
+              </div>
+              <Button className="h-11 w-full" onClick={agregarConOpciones}>
+                <Plus className="h-4 w-4" /> Agregar al carrito
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Precio libre: monto y descripción del pedido */}
         <Dialog open={!!libre} onOpenChange={(o) => !o && setLibre(null)}>
@@ -582,8 +708,10 @@ export function POS({
             </DialogHeader>
             <ul className="divide-y rounded-lg border">
               {grupoAbierto?.items.map((p) => {
-                const enCarrito = carrito.get(p.id)?.cantidad ?? 0;
-                const agotado = !p.precio_libre && p.stock <= 0;
+                const enCarrito = lineas
+                  .filter((l) => l.producto.id === p.id)
+                  .reduce((s, l) => s + l.cantidad, 0);
+                const agotado = !sinLimite(p) && p.stock <= 0;
                 return (
                   <li key={p.id}>
                     <button
@@ -604,11 +732,17 @@ export function POS({
                             p.stock <= 2 ? "text-destructive" : "text-muted-foreground",
                           )}
                         >
-                          {agotado ? "Sin stock" : `Stock: ${p.stock}`}
+                          {p.precio_libre
+                            ? "Monto libre"
+                            : sinLimite(p)
+                              ? "Sobre pedido"
+                              : agotado
+                                ? "Sin stock"
+                                : `Stock: ${p.stock}`}
                         </p>
                       </div>
                       <span className="font-semibold text-primary">
-                        {formatQ(p.precio_venta)}
+                        {p.precio_libre ? "—" : formatQ(p.precio_venta)}
                       </span>
                       {enCarrito > 0 && (
                         <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
@@ -648,7 +782,7 @@ export function POS({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{producto.nombre}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {descripcion ?? `${formatQ(precio)} c/u`}
+                      {descripcion ? `${descripcion} · ${formatQ(precio)}` : `${formatQ(precio)} c/u`}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">

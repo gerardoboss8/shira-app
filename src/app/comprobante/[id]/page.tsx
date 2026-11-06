@@ -30,7 +30,7 @@ type LineaComprobante = {
   precio_unitario: number;
   total_linea: number;
   descripcion: string | null;
-  producto: { nombre: string } | null;
+  producto: { nombre: string; precio_libre: boolean } | null;
 };
 
 async function cargar(id: string) {
@@ -47,7 +47,7 @@ async function cargar(id: string) {
       .maybeSingle(),
     supabase
       .from("venta_items")
-      .select("cantidad, precio_unitario, total_linea, descripcion, producto:productos(nombre)")
+      .select("cantidad, precio_unitario, total_linea, descripcion, producto:productos(nombre, precio_libre)")
       .eq("venta_id", id)
       .order("id"),
   ]);
@@ -182,7 +182,9 @@ export default async function ComprobantePage({
                 <tr key={i} className="border-b border-[#dde3ef]">
                   <td className="px-4 py-4 align-top">{l.cantidad}</td>
                   <td className="px-2 py-4 align-top">
-                    {l.descripcion ?? l.producto?.nombre ?? "—"}
+                    {l.producto?.precio_libre
+                      ? (l.descripcion ?? l.producto.nombre)
+                      : (l.producto?.nombre ?? "—") + (l.descripcion ? ` – ${l.descripcion}` : "")}
                   </td>
                   <td className="px-2 py-4 text-right align-top">{q(l.precio_unitario)}</td>
                   <td className="px-4 py-4 text-right align-top">{q(l.total_linea)}</td>

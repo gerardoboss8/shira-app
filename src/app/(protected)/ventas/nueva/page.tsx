@@ -15,7 +15,7 @@ export default async function NuevaVentaPage() {
     supabase
       .from("productos")
       .select(
-        `id, nombre, sku, precio_venta, stock, categoria_id, grupo, precio_libre, ${COMPONENTES_SELECT}`,
+        `id, nombre, sku, precio_venta, stock, categoria_id, grupo, precio_libre, controla_stock, ${COMPONENTES_SELECT}`,
       )
       .eq("negocio_id", negocio.id)
       .eq("activo", true)
@@ -32,6 +32,7 @@ export default async function NuevaVentaPage() {
       categoria_id: string;
       grupo: string | null;
       precio_libre: boolean;
+      controla_stock: boolean;
       componentes: ComponenteRow[] | null;
     }[]
   ).map(conStockReal);

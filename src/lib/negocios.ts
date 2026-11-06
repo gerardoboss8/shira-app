@@ -21,6 +21,8 @@ export type Negocio = {
   themeColor: string;
   /** Subcategorías sugeridas al crear productos. */
   gruposSugeridos: string[];
+  /** Productos nuevos: true = se hacen sobre pedido (sin existencias). */
+  sobrePedido: boolean;
   /** Colores y contacto del comprobante de pago. */
   comprobante: {
     fondo: string;
@@ -46,6 +48,7 @@ export const NEGOCIOS: Record<NegocioId, Negocio> = {
     manifest: "/manifest.json",
     themeColor: "#176BE0",
     gruposSugeridos: [],
+    sobrePedido: false,
     comprobante: {
       fondo: "#0a3478",
       franja: "#4a90cf",
@@ -78,6 +81,7 @@ export const NEGOCIOS: Record<NegocioId, Negocio> = {
       "Individuales",
       "Bolsas",
     ],
+    sobrePedido: true,
     comprobante: {
       fondo: "#2e1a5c",
       franja: "#ff5a5a",

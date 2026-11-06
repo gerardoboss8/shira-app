@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { formatQ, hoyGT } from "@/lib/format";
+import { llevaStock } from "@/lib/combos";
 import { cn } from "@/lib/utils";
 import type { Categoria } from "@/lib/database.types";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MovimientoDialog } from "@/components/inventario/movimiento-dialog";
+import { OpcionesDialog } from "@/components/inventario/opciones-dialog";
 import {
   ProductoDialog,
   type ProductoEdit,
@@ -43,6 +45,7 @@ import {
   Loader2,
   ChevronRight,
   Layers,
+  Palette,
 } from "lucide-react";
 
 export type ProductoInv = {
@@ -54,6 +57,8 @@ export type ProductoInv = {
   /** En combos: cuántos alcanzan con el stock de sus piezas. */
   stock: number;
   precio_libre: boolean;
+  /** false = sobre pedido. */
+  controla_stock: boolean;
   es_combo: boolean;
   /** "Leccionario I + Leccionario II + …" (solo combos). */
   piezas: string | null;
@@ -64,8 +69,8 @@ export type ProductoInv = {
   categoria: { nombre: string; prefijo: string; orden: number } | null;
 };
 
-/** Combos y precio libre no tienen stock propio: no suman ni se mueven. */
-const conStockPropio = (p: ProductoInv) => !p.es_combo && !p.precio_libre;
+/** Combos, precio libre y sobre pedido no tienen stock propio: no suman ni se mueven. */
+const conStockPropio = llevaStock;
 
 const porSku = (a: { sku: string }, b: { sku: string }) => a.sku.localeCompare(b.sku, "es");
 
@@ -79,13 +84,17 @@ export function Inventario({
   categorias,
   esAdmin,
   gruposSugeridos = [],
+  sobrePedido = false,
 }: {
   productos: ProductoInv[];
   categorias: Categoria[];
   esAdmin: boolean;
   /** Subcategorías propias del negocio, aunque aún no tengan productos. */
   gruposSugeridos?: string[];
+  /** Productos nuevos de este negocio se hacen sobre pedido. */
+  sobrePedido?: boolean;
 }) {
+  const [verOpciones, setVerOpciones] = useState(false);
   const router = useRouter();
   const [busqueda, setBusqueda] = useState("");
   const [verInactivos, setVerInactivos] = useState(false);
@@ -192,6 +201,7 @@ export function Inventario({
       sku: p.sku,
       precio_venta: p.precio_venta,
       costo: p.costo,
+      controla_stock: p.controla_stock,
       stock_minimo: p.stock_minimo,
       categoria_id: p.categoria_id,
       grupo: p.grupo,
@@ -264,13 +274,15 @@ export function Inventario({
             <span
               className={cn("font-semibold tabular-nums", bajo && "text-destructive")}
             >
-              {p.precio_libre ? "—" : p.stock}
+              {conStockPropio(p) || p.es_combo ? p.stock : "—"}
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
             {p.precio_libre
-              ? "a pedido"
-              : p.es_combo
+              ? "monto libre"
+              : !p.controla_stock && !p.es_combo
+                ? "sobre pedido"
+                : p.es_combo
                 ? "alcanza"
                 : formatQ(p.stock * p.precio_venta)}
           </p>
@@ -383,7 +395,7 @@ export function Inventario({
         `"${p.nombre.replace(/"/g, '""')}"`,
         p.categoria?.nombre ?? "",
         p.grupo ?? "",
-        conStockPropio(p) ? String(p.stock) : p.es_combo ? "combo" : "a pedido",
+        conStockPropio(p) ? String(p.stock) : p.es_combo ? "combo" : "sobre pedido",
         p.precio_venta.toFixed(2),
         p.costo != null ? Number(p.costo).toFixed(2) : "",
         conStockPropio(p) ? (p.stock * p.precio_venta).toFixed(2) : "",
@@ -404,6 +416,11 @@ export function Inventario({
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold">Inventario</h1>
         <div className="flex gap-2">
+          {esAdmin && (
+            <Button variant="outline" size="sm" onClick={() => setVerOpciones(true)}>
+              <Palette className="h-4 w-4" /> Opciones
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={exportarCSV}>
             <Download className="h-4 w-4" /> CSV
           </Button>
@@ -473,9 +490,15 @@ export function Inventario({
             abierto={!!productoMov}
             onClose={() => setProductoMov(null)}
           />
+          <OpcionesDialog
+            categorias={categorias}
+            abierto={verOpciones}
+            onClose={() => setVerOpciones(false)}
+          />
           <ProductoDialog
             categorias={categorias}
             gruposExistentes={gruposExistentes}
+            sobrePedido={sobrePedido}
             producto={productoEdit}
             abierto={dialogProducto}
             onClose={() => setDialogProducto(false)}

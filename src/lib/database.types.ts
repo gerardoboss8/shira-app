@@ -42,9 +42,14 @@ export interface Profile {
   created_at: string;
 }
 
+/** Lista que se elige al vender (ej. Color: Rojo, Azul…). */
+export type OpcionCategoria = { nombre: string; valores: string[] };
+
 export interface Categoria {
   id: string;
   negocio_id: NegocioId;
+  /** Opciones por línea que se piden al vender (Cantel: cuadro y color…). */
+  opciones: OpcionCategoria[];
   nombre: string;
   prefijo: string;
   orden: number;
@@ -66,6 +71,8 @@ export interface Producto {
   grupo: string | null;
   /** Se cobra con monto y descripción escritos al vender (ej. pedido personalizado). */
   precio_libre: boolean;
+  /** false = sobre pedido: se vende sin existencias. */
+  controla_stock: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -179,10 +186,10 @@ export interface Database {
   public: {
     Tables: {
       profiles: TableDef<Profile, "activo" | "role" | "created_at">;
-      categorias: TableDef<Categoria, "id" | "orden" | "negocio_id">;
+      categorias: TableDef<Categoria, "id" | "orden" | "negocio_id" | "opciones">;
       productos: TableDef<
         Producto,
-        "id" | "negocio_id" | "costo" | "stock" | "stock_minimo" | "activo" | "grupo" | "precio_libre" | "created_at" | "updated_at"
+        "id" | "negocio_id" | "costo" | "stock" | "stock_minimo" | "activo" | "grupo" | "precio_libre" | "controla_stock" | "created_at" | "updated_at"
       >;
       ventas: TableDef<
         Venta,
@@ -208,8 +215,8 @@ export interface Database {
     Functions: {
       registrar_venta: {
         Args: {
-          /** precio y descripcion solo para productos de precio libre. */
-          p_items: { producto_id: string; cantidad: number; precio?: number; descripcion?: string }[];
+          /** precio solo en precio libre; descripcion = detalle de la línea (color, nota…). */
+          p_items: { producto_id: string; cantidad: number; precio?: number; descripcion?: string | null }[];
           p_metodo_pago?: MetodoPago;
           p_cliente_nombre?: string | null;
           p_descuento?: number;
