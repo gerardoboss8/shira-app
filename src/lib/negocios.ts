@@ -69,6 +69,8 @@ export const NEGOCIOS: Record<NegocioId, Negocio> = {
     themeColor: "#2E1A5C",
     gruposSugeridos: [
       "Manteles",
+      "Caminos de mesa",
+      "Servilletas",
       "Paneras",
       "Tortilleras",
       "Baguetera",
@@ -81,7 +83,7 @@ export const NEGOCIOS: Record<NegocioId, Negocio> = {
       franja: "#ff5a5a",
       tabla: "#ffde5a",
       acento: "#ff5a5a",
-      whatsapp: "5582 2306",
+      whatsapp: "4713-7444",
       lema: "Manteles y accesorios de cocina",
     },
   },
