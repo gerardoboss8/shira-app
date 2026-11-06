@@ -13,12 +13,14 @@
 --    después del pedido); no mueve inventario.
 --  · Opciones al vender: Cantel (cuadro y color), Lino (color),
 --    Jacquard (diseño YK-01…YK-20). Se editan desde Inventario.
---  · Costos: manteles Cantel = tela Q13.50/yd + Q20 de confección; juego
---    panera+baguetera+tortillera = Q20 + 0.5 yd. El resto queda sin costo
---    hasta tener precio de tela de lino y jacquard.
+--  · Costos = tela + confección (tela por yarda: Cantel Q13.50, Lino Q23.50,
+--    Jacquard Q23; confección: manteles Q20, jacquard cuadrado/redondo Q35,
+--    caminos Q10, gabachas Q20, juego de pan Q20). Sin costo todavía:
+--    paneras/baguetera/tortillera sueltas, servilletas, individuales y
+--    colecciones.
 --
--- Si Artisan ya tiene productos distintos a los 15 provisionales, se
--- detiene sin cambiar nada.
+-- Se puede volver a correr (actualiza precios y costos). Si Artisan tiene
+-- productos que no están en este catálogo, se detiene sin cambiar nada.
 -- =====================================================================
 
 begin;
@@ -35,9 +37,7 @@ begin
   select string_agg(sku || ' (' || nombre || ')', ', ') into v_otros
     from public.productos
    where negocio_id = 'artisan'
-     and sku not in ('CAN-001','CAN-002','CAN-003','CAN-004','CAN-005',
-                     'LIN-001','LIN-002','LIN-003','LIN-004','LIN-005',
-                     'JAC-001','JAC-002','JAC-003','JAC-004','JAC-005');
+     and sku not in ('CAN-001', 'CAN-002', 'CAN-003', 'CAN-004', 'CAN-005', 'CAN-006', 'CAN-007', 'CAN-008', 'CAN-009', 'CAN-010', 'CAN-011', 'CAN-012', 'CAN-013', 'CAN-014', 'CAN-015', 'CAN-016', 'CAN-017', 'CAN-018', 'CAN-019', 'CAN-020', 'CAN-021', 'CAN-022', 'LIN-001', 'LIN-002', 'LIN-003', 'LIN-004', 'LIN-005', 'LIN-006', 'LIN-007', 'LIN-008', 'LIN-009', 'LIN-010', 'LIN-011', 'LIN-012', 'LIN-013', 'LIN-014', 'LIN-015', 'LIN-016', 'LIN-017', 'LIN-018', 'LIN-019', 'LIN-020', 'LIN-021', 'JAC-001', 'JAC-002', 'JAC-003', 'JAC-004', 'JAC-005', 'JAC-006', 'JAC-007', 'JAC-008', 'JAC-009', 'JAC-010', 'JAC-011', 'JAC-012', 'JAC-013', 'JAC-014', 'JAC-015', 'JAC-016', 'JAC-017', 'JAC-018', 'JAC-019', 'JAC-020', 'JAC-021', 'JAC-022', 'JAC-023', 'JAC-024', 'JAC-025', 'JAC-026', 'JAC-027', 'JAC-028', 'JAC-029', 'JAC-030', 'JAC-031', 'JAC-032', 'JAC-033', 'JAC-034', 'JAC-035', 'JAC-036', 'JAC-037', 'JAC-038', 'JAC-039', 'JAC-040');
   if v_otros is not null then
     raise exception 'Artisan ya tiene otros productos; revisar antes de aplicar: %', v_otros;
   end if;
@@ -57,12 +57,12 @@ select c.id, d.sku, d.nombre, d.grupo, d.precio, d.costo, d.libre, false, true
   ('CAN-005', 'CAN', 'Mantel Cantel 12 personas (143 × 366 cm)', 'Manteles', 220.00, 74.00, false),
   ('CAN-006', 'CAN', 'Mantel Cantel 14 personas (143 × 411 cm)', 'Manteles', 250.00, 80.75, false),
   ('CAN-007', 'CAN', 'Mantel Cantel a la medida (cuadrado / redondo, cotizado)', 'Manteles', 0.00, null::numeric, true),
-  ('CAN-008', 'CAN', 'Camino de mesa Cantel 4 personas (40 × 137 cm)', 'Caminos de mesa', 60.00, null::numeric, false),
-  ('CAN-009', 'CAN', 'Camino de mesa Cantel 6 personas (40 × 228 cm)', 'Caminos de mesa', 85.00, null::numeric, false),
-  ('CAN-010', 'CAN', 'Camino de mesa Cantel 8 personas (40 × 274 cm)', 'Caminos de mesa', 95.00, null::numeric, false),
-  ('CAN-011', 'CAN', 'Camino de mesa Cantel 10 personas (40 × 320 cm)', 'Caminos de mesa', 105.00, null::numeric, false),
-  ('CAN-012', 'CAN', 'Camino de mesa Cantel 12 personas (40 × 366 cm)', 'Caminos de mesa', 115.00, null::numeric, false),
-  ('CAN-013', 'CAN', 'Camino de mesa Cantel 14 personas (40 × 411 cm)', 'Caminos de mesa', 125.00, null::numeric, false),
+  ('CAN-008', 'CAN', 'Camino de mesa Cantel 4 personas (40 × 137 cm)', 'Caminos de mesa', 60.00, 16.75, false),
+  ('CAN-009', 'CAN', 'Camino de mesa Cantel 6 personas (40 × 228 cm)', 'Caminos de mesa', 85.00, 21.25, false),
+  ('CAN-010', 'CAN', 'Camino de mesa Cantel 8 personas (40 × 274 cm)', 'Caminos de mesa', 95.00, 23.50, false),
+  ('CAN-011', 'CAN', 'Camino de mesa Cantel 10 personas (40 × 320 cm)', 'Caminos de mesa', 105.00, 25.75, false),
+  ('CAN-012', 'CAN', 'Camino de mesa Cantel 12 personas (40 × 366 cm)', 'Caminos de mesa', 115.00, 28.00, false),
+  ('CAN-013', 'CAN', 'Camino de mesa Cantel 14 personas (40 × 411 cm)', 'Caminos de mesa', 125.00, 30.25, false),
   ('CAN-014', 'CAN', 'Servilleta panera Cantel (44 × 34 cm) · 1 unidad', 'Paneras', 20.00, null::numeric, false),
   ('CAN-015', 'CAN', 'Servilleta panera Cantel (44 × 34 cm) · 6 unidades', 'Paneras', 100.00, null::numeric, false),
   ('CAN-016', 'CAN', 'Servilleta baguetera Cantel (44 × 70 cm) · 1 unidad', 'Baguetera', 35.00, null::numeric, false),
@@ -70,20 +70,20 @@ select c.id, d.sku, d.nombre, d.grupo, d.precio, d.costo, d.libre, false, true
   ('CAN-018', 'CAN', 'Tortillera Cantel (22 × 18 cm)', 'Tortilleras', 35.00, null::numeric, false),
   ('CAN-019', 'CAN', 'Juego panera + baguetera + tortillera Cantel', null, 80.00, 26.75, false),
   ('CAN-020', 'CAN', 'Servilletas de mesa Cantel (45 × 45 cm) · 2 unidades', 'Servilletas', 30.00, null::numeric, false),
-  ('CAN-021', 'CAN', 'Gabacha de peto Cantel adulto (70 × 85 cm)', 'Gabachas', 85.00, null::numeric, false),
-  ('CAN-022', 'CAN', 'Gabacha de peto Cantel niño (48 × 60 cm)', 'Gabachas', 60.00, null::numeric, false),
-  ('LIN-001', 'LIN', 'Mantel de lino 4 personas (140 × 132 cm)', 'Manteles', 150.00, null::numeric, false),
-  ('LIN-002', 'LIN', 'Mantel de lino 6 personas (140 × 224 cm)', 'Manteles', 175.00, null::numeric, false),
-  ('LIN-003', 'LIN', 'Mantel de lino 8 personas (140 × 270 cm)', 'Manteles', 200.00, null::numeric, false),
-  ('LIN-004', 'LIN', 'Mantel de lino 10 personas (140 × 315 cm)', 'Manteles', 250.00, null::numeric, false),
-  ('LIN-005', 'LIN', 'Mantel de lino 12 personas (140 × 360 cm)', 'Manteles', 285.00, null::numeric, false),
-  ('LIN-006', 'LIN', 'Mantel de lino 14 personas (140 × 405 cm)', 'Manteles', 310.00, null::numeric, false),
-  ('LIN-007', 'LIN', 'Camino de mesa de lino 4 personas (40 × 137 cm)', 'Caminos de mesa', 100.00, null::numeric, false),
-  ('LIN-008', 'LIN', 'Camino de mesa de lino 6 personas (40 × 228 cm)', 'Caminos de mesa', 115.00, null::numeric, false),
-  ('LIN-009', 'LIN', 'Camino de mesa de lino 8 personas (40 × 274 cm)', 'Caminos de mesa', 125.00, null::numeric, false),
-  ('LIN-010', 'LIN', 'Camino de mesa de lino 10 personas (40 × 320 cm)', 'Caminos de mesa', 140.00, null::numeric, false),
-  ('LIN-011', 'LIN', 'Camino de mesa de lino 12 personas (40 × 366 cm)', 'Caminos de mesa', 150.00, null::numeric, false),
-  ('LIN-012', 'LIN', 'Camino de mesa de lino 14 personas (40 × 411 cm)', 'Caminos de mesa', 165.00, null::numeric, false),
+  ('CAN-021', 'CAN', 'Gabacha de peto Cantel adulto (70 × 85 cm)', 'Gabachas', 85.00, 26.75, false),
+  ('CAN-022', 'CAN', 'Gabacha de peto Cantel niño (48 × 60 cm)', 'Gabachas', 60.00, 23.38, false),
+  ('LIN-001', 'LIN', 'Mantel de lino 4 personas (140 × 132 cm)', 'Manteles', 150.00, 55.25, false),
+  ('LIN-002', 'LIN', 'Mantel de lino 6 personas (140 × 224 cm)', 'Manteles', 175.00, 78.75, false),
+  ('LIN-003', 'LIN', 'Mantel de lino 8 personas (140 × 270 cm)', 'Manteles', 200.00, 90.50, false),
+  ('LIN-004', 'LIN', 'Mantel de lino 10 personas (140 × 315 cm)', 'Manteles', 250.00, 102.25, false),
+  ('LIN-005', 'LIN', 'Mantel de lino 12 personas (140 × 360 cm)', 'Manteles', 285.00, 114.00, false),
+  ('LIN-006', 'LIN', 'Mantel de lino 14 personas (140 × 405 cm)', 'Manteles', 310.00, 125.75, false),
+  ('LIN-007', 'LIN', 'Camino de mesa de lino 4 personas (40 × 137 cm)', 'Caminos de mesa', 100.00, 21.75, false),
+  ('LIN-008', 'LIN', 'Camino de mesa de lino 6 personas (40 × 228 cm)', 'Caminos de mesa', 115.00, 29.58, false),
+  ('LIN-009', 'LIN', 'Camino de mesa de lino 8 personas (40 × 274 cm)', 'Caminos de mesa', 125.00, 33.50, false),
+  ('LIN-010', 'LIN', 'Camino de mesa de lino 10 personas (40 × 320 cm)', 'Caminos de mesa', 140.00, 37.42, false),
+  ('LIN-011', 'LIN', 'Camino de mesa de lino 12 personas (40 × 366 cm)', 'Caminos de mesa', 150.00, 41.33, false),
+  ('LIN-012', 'LIN', 'Camino de mesa de lino 14 personas (40 × 411 cm)', 'Caminos de mesa', 165.00, 45.25, false),
   ('LIN-013', 'LIN', 'Servilletas de lino (44 × 44 cm) · juego de 4', 'Servilletas', 100.00, null::numeric, false),
   ('LIN-014', 'LIN', 'Servilletas de lino (44 × 44 cm) · juego de 6', 'Servilletas', 125.00, null::numeric, false),
   ('LIN-015', 'LIN', 'Mesa de lino 4 personas (mantel + camino + 4 servilletas)', 'Mesa de lino (colección)', 315.00, null::numeric, false),
@@ -93,29 +93,29 @@ select c.id, d.sku, d.nombre, d.grupo, d.precio, d.costo, d.libre, false, true
   ('LIN-019', 'LIN', 'Mesa de lino 12 personas (mantel + camino + 4 servilletas)', 'Mesa de lino (colección)', 480.00, null::numeric, false),
   ('LIN-020', 'LIN', 'Mesa de lino 14 personas (mantel + camino + 4 servilletas)', 'Mesa de lino (colección)', 520.00, null::numeric, false),
   ('LIN-021', 'LIN', 'Mantel de lino a la medida (cotizado)', 'Manteles', 0.00, null::numeric, true),
-  ('JAC-001', 'JAC', 'Mantel jacquard rectangular 4 personas (143 × 137 cm)', 'Manteles rectangulares', 140.00, null::numeric, false),
-  ('JAC-002', 'JAC', 'Mantel jacquard rectangular 6 personas (143 × 228 cm)', 'Manteles rectangulares', 160.00, null::numeric, false),
-  ('JAC-003', 'JAC', 'Mantel jacquard rectangular 8 personas (143 × 274 cm)', 'Manteles rectangulares', 185.00, null::numeric, false),
-  ('JAC-004', 'JAC', 'Mantel jacquard rectangular 10 personas (143 × 320 cm)', 'Manteles rectangulares', 225.00, null::numeric, false),
-  ('JAC-005', 'JAC', 'Mantel jacquard rectangular 12 personas (143 × 366 cm)', 'Manteles rectangulares', 260.00, null::numeric, false),
-  ('JAC-006', 'JAC', 'Mantel jacquard rectangular 14 personas (143 × 411 cm)', 'Manteles rectangulares', 300.00, null::numeric, false),
-  ('JAC-007', 'JAC', 'Mantel jacquard cuadrado 4 personas (150 × 150 cm)', 'Manteles cuadrados', 160.00, null::numeric, false),
-  ('JAC-008', 'JAC', 'Mantel jacquard cuadrado 6 personas (180 × 180 cm)', 'Manteles cuadrados', 185.00, null::numeric, false),
-  ('JAC-009', 'JAC', 'Mantel jacquard cuadrado 8 personas (210 × 210 cm)', 'Manteles cuadrados', 220.00, null::numeric, false),
-  ('JAC-010', 'JAC', 'Mantel jacquard cuadrado 10 personas (250 × 250 cm)', 'Manteles cuadrados', 260.00, null::numeric, false),
-  ('JAC-011', 'JAC', 'Mantel jacquard cuadrado 12 personas (282 × 282 cm)', 'Manteles cuadrados', 300.00, null::numeric, false),
-  ('JAC-012', 'JAC', 'Mantel jacquard redondo 4 personas (Ø 160 cm)', 'Manteles redondos', 175.00, null::numeric, false),
-  ('JAC-013', 'JAC', 'Mantel jacquard redondo 6 personas (Ø 180 cm)', 'Manteles redondos', 210.00, null::numeric, false),
-  ('JAC-014', 'JAC', 'Mantel jacquard redondo 8 personas (Ø 200 cm)', 'Manteles redondos', 240.00, null::numeric, false),
-  ('JAC-015', 'JAC', 'Mantel jacquard redondo 10 personas (Ø 230 cm)', 'Manteles redondos', 270.00, null::numeric, false),
-  ('JAC-016', 'JAC', 'Mantel jacquard redondo 12 personas (Ø 260 cm)', 'Manteles redondos', 300.00, null::numeric, false),
-  ('JAC-017', 'JAC', 'Mantel jacquard redondo 14 personas (Ø 280 cm)', 'Manteles redondos', 330.00, null::numeric, false),
-  ('JAC-018', 'JAC', 'Camino de mesa jacquard 4 personas (40 × 137 cm)', 'Caminos de mesa', 100.00, null::numeric, false),
-  ('JAC-019', 'JAC', 'Camino de mesa jacquard 6 personas (40 × 228 cm)', 'Caminos de mesa', 115.00, null::numeric, false),
-  ('JAC-020', 'JAC', 'Camino de mesa jacquard 8 personas (40 × 274 cm)', 'Caminos de mesa', 125.00, null::numeric, false),
-  ('JAC-021', 'JAC', 'Camino de mesa jacquard 10 personas (40 × 320 cm)', 'Caminos de mesa', 140.00, null::numeric, false),
-  ('JAC-022', 'JAC', 'Camino de mesa jacquard 12 personas (40 × 366 cm)', 'Caminos de mesa', 150.00, null::numeric, false),
-  ('JAC-023', 'JAC', 'Camino de mesa jacquard 14 personas (40 × 411 cm)', 'Caminos de mesa', 165.00, null::numeric, false),
+  ('JAC-001', 'JAC', 'Mantel jacquard rectangular 4 personas (143 × 137 cm)', 'Manteles rectangulares', 140.00, 37.25, false),
+  ('JAC-002', 'JAC', 'Mantel jacquard rectangular 6 personas (143 × 228 cm)', 'Manteles rectangulares', 160.00, 48.75, false),
+  ('JAC-003', 'JAC', 'Mantel jacquard rectangular 8 personas (143 × 274 cm)', 'Manteles rectangulares', 185.00, 54.50, false),
+  ('JAC-004', 'JAC', 'Mantel jacquard rectangular 10 personas (143 × 320 cm)', 'Manteles rectangulares', 225.00, 60.25, false),
+  ('JAC-005', 'JAC', 'Mantel jacquard rectangular 12 personas (143 × 366 cm)', 'Manteles rectangulares', 260.00, 66.00, false),
+  ('JAC-006', 'JAC', 'Mantel jacquard rectangular 14 personas (143 × 411 cm)', 'Manteles rectangulares', 300.00, 71.75, false),
+  ('JAC-007', 'JAC', 'Mantel jacquard cuadrado 4 personas (150 × 150 cm)', 'Manteles cuadrados', 160.00, 75.25, false),
+  ('JAC-008', 'JAC', 'Mantel jacquard cuadrado 6 personas (180 × 180 cm)', 'Manteles cuadrados', 185.00, 81.00, false),
+  ('JAC-009', 'JAC', 'Mantel jacquard cuadrado 8 personas (210 × 210 cm)', 'Manteles cuadrados', 220.00, 92.50, false),
+  ('JAC-010', 'JAC', 'Mantel jacquard cuadrado 10 personas (250 × 250 cm)', 'Manteles cuadrados', 260.00, 98.25, false),
+  ('JAC-011', 'JAC', 'Mantel jacquard cuadrado 12 personas (282 × 282 cm)', 'Manteles cuadrados', 300.00, 109.75, false),
+  ('JAC-012', 'JAC', 'Mantel jacquard redondo 4 personas (Ø 160 cm)', 'Manteles redondos', 175.00, 75.25, false),
+  ('JAC-013', 'JAC', 'Mantel jacquard redondo 6 personas (Ø 180 cm)', 'Manteles redondos', 210.00, 81.00, false),
+  ('JAC-014', 'JAC', 'Mantel jacquard redondo 8 personas (Ø 200 cm)', 'Manteles redondos', 240.00, 86.75, false),
+  ('JAC-015', 'JAC', 'Mantel jacquard redondo 10 personas (Ø 230 cm)', 'Manteles redondos', 270.00, 98.25, false),
+  ('JAC-016', 'JAC', 'Mantel jacquard redondo 12 personas (Ø 260 cm)', 'Manteles redondos', 300.00, 104.00, false),
+  ('JAC-017', 'JAC', 'Mantel jacquard redondo 14 personas (Ø 280 cm)', 'Manteles redondos', 330.00, 109.75, false),
+  ('JAC-018', 'JAC', 'Camino de mesa jacquard 4 personas (40 × 137 cm)', 'Caminos de mesa', 100.00, 14.93, false),
+  ('JAC-019', 'JAC', 'Camino de mesa jacquard 6 personas (40 × 228 cm)', 'Caminos de mesa', 115.00, 18.21, false),
+  ('JAC-020', 'JAC', 'Camino de mesa jacquard 8 personas (40 × 274 cm)', 'Caminos de mesa', 125.00, 19.86, false),
+  ('JAC-021', 'JAC', 'Camino de mesa jacquard 10 personas (40 × 320 cm)', 'Caminos de mesa', 140.00, 21.50, false),
+  ('JAC-022', 'JAC', 'Camino de mesa jacquard 12 personas (40 × 366 cm)', 'Caminos de mesa', 150.00, 23.14, false),
+  ('JAC-023', 'JAC', 'Camino de mesa jacquard 14 personas (40 × 411 cm)', 'Caminos de mesa', 165.00, 24.79, false),
   ('JAC-024', 'JAC', 'Individuales jacquard rectangulares · juego de 4', 'Individuales', 80.00, null::numeric, false),
   ('JAC-025', 'JAC', 'Individuales jacquard rectangulares · juego de 6', 'Individuales', 115.00, null::numeric, false),
   ('JAC-026', 'JAC', 'Individuales jacquard redondos · juego de 4', 'Individuales', 125.00, null::numeric, false),
